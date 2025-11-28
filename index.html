@@ -88,8 +88,99 @@
         if (savedToken) {
           setGithubToken(savedToken);
           console.log('Loaded saved token from localStorage');
+          // Auto-authenticate with saved token
+          autoAuthenticate(savedToken);
         }
       }, []);
+      
+      const autoAuthenticate = async (token) => {
+        setLoading(true);
+        setError('');
+        
+        try {
+          const userResponse = await fetch('https://api.github.com/user', {
+            headers: {
+              'Authorization': `token ${token}`,
+              'Accept': 'application/vnd.github.v3+json',
+            },
+          });
+
+          if (!userResponse.ok) {
+            console.log('Saved token is invalid, showing login screen');
+            return;
+          }
+
+          const userData = await userResponse.json();
+          console.log('Auto-authenticated as:', userData.login);
+
+          const compareResponse = await fetch(
+            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/compare/${TARGET_BRANCH}...${SOURCE_BRANCH}`,
+            {
+              headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+              },
+            }
+          );
+
+          if (!compareResponse.ok) {
+            const errorData = await compareResponse.json();
+            console.error('Failed to fetch commits:', errorData);
+            setError('Could not load commits. Please try again.');
+            return;
+          }
+
+          const compareData = await compareResponse.json();
+          console.log('Compare API response status:', compareData.status);
+          console.log(`Found ${compareData.commits.length} commits on ${SOURCE_BRANCH} that are not on ${TARGET_BRANCH}`);
+          
+          const mainCommitsResponse = await fetch(
+            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?sha=${TARGET_BRANCH}&per_page=100`,
+            {
+              headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+              },
+            }
+          );
+          
+          if (mainCommitsResponse.ok) {
+            const mainCommits = await mainCommitsResponse.json();
+            const mainTreeShas = new Set(mainCommits.map(c => c.commit.tree.sha));
+            const mainMessages = new Set(mainCommits.map(c => c.commit.message.trim()));
+            
+            const uniqueCommits = compareData.commits.filter(c => {
+              const treeExists = mainTreeShas.has(c.commit.tree.sha);
+              const messageExists = mainMessages.has(c.commit.message.trim());
+              
+              if (treeExists) {
+                console.log(`Filtering out commit ${c.sha.substring(0, 7)} - identical tree SHA found in main (cherry-picked content)`);
+                return false;
+              }
+              
+              if (messageExists) {
+                console.log(`Filtering out commit ${c.sha.substring(0, 7)} - duplicate message found in main`);
+                return false;
+              }
+              
+              return true;
+            });
+            
+            console.log(`Filtered out ${compareData.commits.length - uniqueCommits.length} commits already applied to main`);
+            setCommits(uniqueCommits);
+          } else {
+            console.warn('Could not fetch main commits for duplicate detection, showing all commits from compare');
+            setCommits(compareData.commits);
+          }
+          
+          setIsAuthenticated(true);
+        } catch (err) {
+          console.error('Auto-authentication failed:', err);
+          setError('');
+        } finally {
+          setLoading(false);
+        }
+      };
       
       // Save token to localStorage when it changes
       const handleTokenChange = (token) => {
@@ -262,7 +353,7 @@
               .replace(/[^a-z0-9]+/g, '-')
               .replace(/^-+|-+$/g, '')
               .substring(0, 50);
-            branchName = `cherry-pick/${sanitized}`;
+            branchName = `release/${sanitized}`;
             prTitle = commitMsg;
           } else {
             const firstCommit = selectedCommitObjects[0].commit.message.split('\n')[0];
@@ -271,7 +362,7 @@
               .replace(/[^a-z0-9]+/g, '-')
               .replace(/^-+|-+$/g, '')
               .substring(0, 40);
-            branchName = `cherry-pick/${sanitized}-plus-${selectedCommitObjects.length - 1}-more`;
+            branchName = `release/${sanitized}-plus-${selectedCommitObjects.length - 1}-more`;
             prTitle = `${firstCommit} (+${selectedCommitObjects.length - 1} more commits)`;
           }
           
@@ -467,6 +558,56 @@ ${selectedCommitObjects.map(c => `- [\`${c.sha.substring(0, 7)}\`](${c.html_url}
       };
 
       if (!isAuthenticated) {
+        // Show loading spinner while auto-authenticating
+        if (loading) {
+          return (
+            <div style={{
+              minHeight: '100vh',
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontFamily: '"Crimson Pro", Georgia, serif',
+              padding: '2rem',
+            }}>
+              <div style={{
+                background: 'white',
+                padding: '3rem',
+                borderRadius: '2px',
+                maxWidth: '480px',
+                width: '100%',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+                textAlign: 'center',
+              }}>
+                <div style={{
+                  width: '48px',
+                  height: '48px',
+                  border: '4px solid #f1f5f9',
+                  borderTop: '4px solid #0f172a',
+                  borderRadius: '50%',
+                  margin: '0 auto 1.5rem',
+                  animation: 'spin 1s linear infinite',
+                }}></div>
+                <h2 style={{
+                  fontSize: '1.5rem',
+                  fontWeight: '600',
+                  color: '#0f172a',
+                  marginBottom: '0.5rem',
+                }}>
+                  Connecting...
+                </h2>
+                <p style={{
+                  color: '#64748b',
+                  fontSize: '0.938rem',
+                  fontFamily: '"IBM Plex Sans", sans-serif',
+                }}>
+                  Authenticating with GitHub
+                </p>
+              </div>
+            </div>
+          );
+        }
+        
         return (
           <div style={{
             minHeight: '100vh',
@@ -994,6 +1135,15 @@ ${selectedCommitObjects.map(c => `- [\`${c.sha.substring(0, 7)}\`](${c.html_url}
               to {
                 opacity: 1;
                 transform: translateY(0);
+              }
+            }
+            
+            @keyframes spin {
+              from {
+                transform: rotate(0deg);
+              }
+              to {
+                transform: rotate(360deg);
               }
             }
             
