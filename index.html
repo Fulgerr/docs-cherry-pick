@@ -1,0 +1,1013 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Cherry-Pick Tool | Test Repo</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    
+    // Lucide React icons as inline SVG components
+    const Search = ({ size = 24, color = "currentColor", ...props }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <circle cx="11" cy="11" r="8"></circle>
+        <path d="m 21 21-4.35-4.35"></path>
+      </svg>
+    );
+    
+    const GitBranch = ({ size = 24, color = "currentColor", ...props }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <line x1="6" y1="3" x2="6" y2="15"></line>
+        <circle cx="18" cy="6" r="3"></circle>
+        <circle cx="6" cy="18" r="3"></circle>
+        <path d="M18 9a9 9 0 0 1-9 9"></path>
+      </svg>
+    );
+    
+    const GitCommit = ({ size = 24, color = "currentColor", ...props }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <circle cx="12" cy="12" r="3"></circle>
+        <line x1="3" y1="12" x2="9" y2="12"></line>
+        <line x1="15" y1="12" x2="21" y2="12"></line>
+      </svg>
+    );
+    
+    const Check = ({ size = 24, color = "currentColor", strokeWidth = 2, ...props }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <polyline points="20 6 9 17 4 12"></polyline>
+      </svg>
+    );
+    
+    const AlertCircle = ({ size = 24, color = "currentColor", ...props }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+    );
+    
+    const ChevronRight = ({ size = 24, color = "currentColor", ...props }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    );
+
+    const CommitCherryPicker = () => {
+      const [githubToken, setGithubToken] = useState('');
+      const [isAuthenticated, setIsAuthenticated] = useState(false);
+      const [commits, setCommits] = useState([]);
+      const [selectedCommits, setSelectedCommits] = useState(new Set());
+      const [searchTerm, setSearchTerm] = useState('');
+      const [loading, setLoading] = useState(false);
+      const [error, setError] = useState('');
+      const [prCreating, setPrCreating] = useState(false);
+      const [prUrl, setPrUrl] = useState('');
+      const [hideMergeCommits, setHideMergeCommits] = useState(true);
+      
+      const REPO_OWNER = 'Fulgerr';
+      const REPO_NAME = 'docs-pilot';
+      const SOURCE_BRANCH = 'develop';
+      const TARGET_BRANCH = 'main';
+      
+      // Load token from localStorage on mount
+      useEffect(() => {
+        const savedToken = localStorage.getItem('github_token_test');
+        if (savedToken) {
+          setGithubToken(savedToken);
+          console.log('Loaded saved token from localStorage');
+        }
+      }, []);
+      
+      // Save token to localStorage when it changes
+      const handleTokenChange = (token) => {
+        setGithubToken(token);
+        if (token) {
+          localStorage.setItem('github_token_test', token);
+        } else {
+          localStorage.removeItem('github_token_test');
+        }
+      };
+      
+      const clearToken = () => {
+        setGithubToken('');
+        setIsAuthenticated(false);
+        localStorage.removeItem('github_token_test');
+        setCommits([]);
+        setSelectedCommits(new Set());
+      };
+
+      const fetchCommits = async () => {
+        setLoading(true);
+        setError('');
+        
+        try {
+          const userResponse = await fetch('https://api.github.com/user', {
+            headers: {
+              'Authorization': `token ${githubToken}`,
+              'Accept': 'application/vnd.github.v3+json',
+            },
+          });
+
+          if (!userResponse.ok) {
+            if (userResponse.status === 401) {
+              throw new Error('Invalid token. Please check your Personal Access Token.');
+            }
+            throw new Error(`Authentication failed: ${userResponse.statusText}`);
+          }
+
+          const userData = await userResponse.json();
+          console.log('Authenticated as:', userData.login);
+
+          // Use GitHub's compare API to get commits on develop but not on main
+          const compareResponse = await fetch(
+            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/compare/${TARGET_BRANCH}...${SOURCE_BRANCH}`,
+            {
+              headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json',
+              },
+            }
+          );
+
+          if (!compareResponse.ok) {
+            const errorData = await compareResponse.json();
+            if (compareResponse.status === 404) {
+              throw new Error(`Repository not found or no access. Check: 1) Repository exists, 2) Token has 'repo' scope, 3) You have access to ${REPO_OWNER}/${REPO_NAME}`);
+            }
+            throw new Error(errorData.message || `Failed to compare branches: ${compareResponse.statusText}`);
+          }
+
+          const compareData = await compareResponse.json();
+          console.log('Compare API response status:', compareData.status);
+          console.log(`Found ${compareData.commits.length} commits on ${SOURCE_BRANCH} that are not on ${TARGET_BRANCH}`);
+          console.log('Ahead by:', compareData.ahead_by);
+          console.log('Behind by:', compareData.behind_by);
+          
+          // Fetch recent commits from main with their tree SHAs
+          const mainCommitsResponse = await fetch(
+            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?sha=${TARGET_BRANCH}&per_page=100`,
+            {
+              headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json',
+              },
+            }
+          );
+          
+          if (mainCommitsResponse.ok) {
+            const mainCommits = await mainCommitsResponse.json();
+            
+            // Create a set of tree SHAs from main
+            // Tree SHA represents the exact file state - if trees match, content is identical
+            const mainTreeShas = new Set(mainCommits.map(c => c.commit.tree.sha));
+            
+            // Also create a set of commit messages as secondary check
+            const mainMessages = new Set(mainCommits.map(c => c.commit.message.trim()));
+            
+            // Filter out commits whose content already exists in main
+            const uniqueCommits = compareData.commits.filter(c => {
+              const treeExists = mainTreeShas.has(c.commit.tree.sha);
+              const messageExists = mainMessages.has(c.commit.message.trim());
+              
+              if (treeExists) {
+                console.log(`Filtering out commit ${c.sha.substring(0, 7)} - identical tree SHA found in main (cherry-picked content)`);
+                return false;
+              }
+              
+              if (messageExists) {
+                console.log(`Filtering out commit ${c.sha.substring(0, 7)} - duplicate message found in main`);
+                return false;
+              }
+              
+              return true;
+            });
+            
+            console.log(`Filtered out ${compareData.commits.length - uniqueCommits.length} commits already applied to main`);
+            setCommits(uniqueCommits);
+          } else {
+            console.warn('Could not fetch main commits for duplicate detection, showing all commits from compare');
+            setCommits(compareData.commits);
+          }
+          
+          setIsAuthenticated(true);
+        } catch (err) {
+          setError(err.message);
+          setIsAuthenticated(false);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const toggleCommit = (sha) => {
+        const newSelected = new Set(selectedCommits);
+        if (newSelected.has(sha)) {
+          newSelected.delete(sha);
+        } else {
+          newSelected.add(sha);
+        }
+        setSelectedCommits(newSelected);
+      };
+
+      const createCherryPickPR = async () => {
+        setPrCreating(true);
+        setError('');
+        
+        try {
+          console.log('Starting cherry-pick process...');
+          
+          const mainResponse = await fetch(
+            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/ref/heads/${TARGET_BRANCH}`,
+            {
+              headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json',
+              },
+            }
+          );
+          
+          if (!mainResponse.ok) {
+            const errorData = await mainResponse.json();
+            console.error('Failed to fetch main branch:', errorData);
+            throw new Error(`Failed to fetch ${TARGET_BRANCH} branch: ${errorData.message || mainResponse.statusText}`);
+          }
+          
+          const mainData = await mainResponse.json();
+          const baseSha = mainData.object.sha;
+          console.log(`Base SHA from ${TARGET_BRANCH}:`, baseSha);
+          
+          const selectedCommitObjects = commits.filter(c => selectedCommits.has(c.sha)).reverse();
+          console.log('Selected commits:', selectedCommitObjects.map(c => c.sha.substring(0, 7)));
+          
+          const timestamp = Date.now();
+          let branchName;
+          let prTitle;
+          
+          if (selectedCommitObjects.length === 1) {
+            const commitMsg = selectedCommitObjects[0].commit.message.split('\n')[0];
+            const sanitized = commitMsg
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-+|-+$/g, '')
+              .substring(0, 50);
+            branchName = `cherry-pick/${sanitized}`;
+            prTitle = commitMsg;
+          } else {
+            const firstCommit = selectedCommitObjects[0].commit.message.split('\n')[0];
+            const sanitized = firstCommit
+              .toLowerCase()
+              .replace(/[^a-z0-9]+/g, '-')
+              .replace(/^-+|-+$/g, '')
+              .substring(0, 40);
+            branchName = `cherry-pick/${sanitized}-plus-${selectedCommitObjects.length - 1}-more`;
+            prTitle = `${firstCommit} (+${selectedCommitObjects.length - 1} more commits)`;
+          }
+          
+          console.log('Creating branch:', branchName);
+          
+          const createBranchResponse = await fetch(
+            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                ref: `refs/heads/${branchName}`,
+                sha: baseSha,
+              }),
+            }
+          );
+          
+          if (!createBranchResponse.ok) {
+            const errorData = await createBranchResponse.json();
+            console.error('Failed to create branch:', errorData);
+            throw new Error(`Failed to create branch: ${errorData.message || createBranchResponse.statusText}`);
+          }
+          
+          console.log('Branch created successfully');
+          
+          let currentSha = baseSha;
+          
+          for (let i = 0; i < selectedCommitObjects.length; i++) {
+            const commit = selectedCommitObjects[i];
+            console.log(`Cherry-picking commit ${i + 1}/${selectedCommitObjects.length}: ${commit.sha.substring(0, 7)}`);
+            
+            const cherryPickResponse = await fetch(
+              `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/commits/${commit.sha}`,
+              {
+                headers: {
+                  'Authorization': `token ${githubToken}`,
+                  'Accept': 'application/vnd.github.v3+json',
+                },
+              }
+            );
+            
+            if (!cherryPickResponse.ok) {
+              const errorData = await cherryPickResponse.json();
+              console.error(`Failed to fetch commit ${commit.sha}:`, errorData);
+              throw new Error(`Failed to fetch commit ${commit.sha}: ${errorData.message || cherryPickResponse.statusText}`);
+            }
+            
+            const commitData = await cherryPickResponse.json();
+            
+            const newCommitResponse = await fetch(
+              `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/commits`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `token ${githubToken}`,
+                  'Accept': 'application/vnd.github.v3+json',
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  message: commitData.message,
+                  tree: commitData.tree.sha,
+                  parents: [currentSha],
+                }),
+              }
+            );
+            
+            if (!newCommitResponse.ok) {
+              const errorData = await newCommitResponse.json();
+              console.error(`Failed to create commit for ${commit.sha}:`, errorData);
+              throw new Error(`Failed to cherry-pick commit ${commit.sha}: ${errorData.message || newCommitResponse.statusText}`);
+            }
+            
+            const newCommitData = await newCommitResponse.json();
+            currentSha = newCommitData.sha;
+            console.log(`Created new commit: ${currentSha.substring(0, 7)}`);
+          }
+          
+          console.log('Updating branch reference...');
+          
+          const updateRefResponse = await fetch(
+            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${branchName}`,
+            {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                sha: currentSha,
+                force: true,
+              }),
+            }
+          );
+          
+          if (!updateRefResponse.ok) {
+            const errorData = await updateRefResponse.json();
+            console.error('Failed to update branch:', errorData);
+            throw new Error(`Failed to update branch: ${errorData.message || updateRefResponse.statusText}`);
+          }
+          
+          console.log('Branch updated successfully');
+          
+          const commitList = selectedCommitObjects
+            .map(c => `- ${c.sha.substring(0, 7)}: ${c.commit.message.split('\\n')[0]}`)
+            .join('\\n');
+          
+          const prBody = `This PR cherry-picks the following commits from \`${SOURCE_BRANCH}\` to \`${TARGET_BRANCH}\`:
+
+${commitList}
+
+## Selected Commits
+${selectedCommitObjects.map(c => `- [\`${c.sha.substring(0, 7)}\`](${c.html_url}) ${c.commit.message.split('\\n')[0]}`).join('\\n')}
+
+---
+*Created via Commit Cherry-Picker Tool*
+
+**Note:** Please resolve any conflicts in the GitHub UI before merging.`;
+
+          console.log('Creating pull request...');
+          
+          const prResponse = await fetch(
+            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/pulls`,
+            {
+              method: 'POST',
+              headers: {
+                'Authorization': `token ${githubToken}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                title: prTitle,
+                body: prBody,
+                head: branchName,
+                base: TARGET_BRANCH,
+              }),
+            }
+          );
+          
+          if (!prResponse.ok) {
+            const errorData = await prResponse.json();
+            console.error('Failed to create pull request:', errorData);
+            throw new Error(`Failed to create PR: ${errorData.message || prResponse.statusText}`);
+          }
+          
+          const prData = await prResponse.json();
+          console.log('Pull request created:', prData.html_url);
+          
+          setPrUrl(prData.html_url);
+          setSelectedCommits(new Set());
+          
+        } catch (err) {
+          console.error('Cherry-pick error:', err);
+          setError(err.message);
+        } finally {
+          setPrCreating(false);
+        }
+      };
+
+      const filteredCommits = commits.filter(commit => {
+        const message = commit.commit.message.toLowerCase();
+        const author = commit.commit.author.name.toLowerCase();
+        const sha = commit.sha.toLowerCase();
+        const term = searchTerm.toLowerCase();
+        const matchesSearch = message.includes(term) || author.includes(term) || sha.includes(term);
+        
+        if (!matchesSearch) return false;
+        
+        if (hideMergeCommits) {
+          const isMergeCommit = message.startsWith('merge') || commit.parents.length > 1;
+          if (isMergeCommit) return false;
+        }
+        
+        return true;
+      });
+
+      const formatDate = (dateString) => {
+        const date = new Date(dateString);
+        const now = new Date();
+        const diffMs = now - date;
+        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        
+        if (diffDays === 0) return 'Today';
+        if (diffDays === 1) return 'Yesterday';
+        if (diffDays < 7) return `${diffDays} days ago`;
+        if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
+        
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      };
+
+      if (!isAuthenticated) {
+        return (
+          <div style={{
+            minHeight: '100vh',
+            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontFamily: '"Crimson Pro", Georgia, serif',
+            padding: '2rem',
+          }}>
+            <div style={{
+              background: 'white',
+              padding: '3rem',
+              borderRadius: '2px',
+              maxWidth: '480px',
+              width: '100%',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+            }}>
+              <div style={{ marginBottom: '2rem' }}>
+                <h1 style={{
+                  fontSize: '2.5rem',
+                  fontWeight: '600',
+                  marginBottom: '0.5rem',
+                  color: '#0f172a',
+                  letterSpacing: '-0.02em',
+                }}>
+                  Commit Cherry-Picker
+                </h1>
+                <p style={{
+                  color: '#64748b',
+                  fontSize: '1rem',
+                  lineHeight: '1.6',
+                  fontFamily: '"IBM Plex Sans", sans-serif',
+                }}>
+                  Visually select and promote commits from <code style={{
+                    background: '#f1f5f9',
+                    padding: '2px 6px',
+                    borderRadius: '3px',
+                    fontSize: '0.9em',
+                  }}>develop</code> to <code style={{
+                    background: '#f1f5f9',
+                    padding: '2px 6px',
+                    borderRadius: '3px',
+                    fontSize: '0.9em',
+                  }}>main</code>
+                </p>
+              </div>
+              
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label style={{
+                  display: 'block',
+                  marginBottom: '0.5rem',
+                  color: '#334155',
+                  fontWeight: '500',
+                  fontSize: '0.875rem',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.05em',
+                  fontFamily: '"IBM Plex Sans", sans-serif',
+                }}>
+                  GitHub Personal Access Token
+                </label>
+                <input
+                  type="password"
+                  value={githubToken}
+                  onChange={(e) => handleTokenChange(e.target.value)}
+                  placeholder="ghp_xxxxxxxxxxxx"
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem',
+                    border: '2px solid #e2e8f0',
+                    borderRadius: '2px',
+                    fontSize: '1rem',
+                    fontFamily: '"IBM Plex Mono", monospace',
+                    transition: 'border-color 0.2s',
+                    outline: 'none',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
+                  onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                />
+                <p style={{
+                  marginTop: '0.5rem',
+                  fontSize: '0.813rem',
+                  color: '#64748b',
+                  fontFamily: '"IBM Plex Sans", sans-serif',
+                  lineHeight: '1.5',
+                }}>
+                  Requires <strong>repo</strong> scope for Fulgerr/docs-pilot
+                  <br />
+                  <a 
+                    href="https://github.com/settings/tokens/new?scopes=repo&description=Commit%20Cherry-Picker" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    style={{ color: '#3b82f6', textDecoration: 'none' }}
+                  >
+                    Create token here →
+                  </a>
+                </p>
+              </div>
+              
+              {error && (
+                <div style={{
+                  padding: '0.875rem',
+                  background: '#fef2f2',
+                  border: '1px solid #fecaca',
+                  borderRadius: '2px',
+                  marginBottom: '1.5rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}>
+                  <AlertCircle size={18} color="#dc2626" />
+                  <span style={{ color: '#991b1b', fontSize: '0.875rem', fontFamily: '"IBM Plex Sans", sans-serif' }}>
+                    {error}
+                  </span>
+                </div>
+              )}
+              
+              <button
+                onClick={fetchCommits}
+                disabled={!githubToken || loading}
+                style={{
+                  width: '100%',
+                  padding: '0.875rem',
+                  background: githubToken && !loading ? '#0f172a' : '#cbd5e1',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '2px',
+                  fontSize: '1rem',
+                  fontWeight: '500',
+                  cursor: githubToken && !loading ? 'pointer' : 'not-allowed',
+                  transition: 'all 0.2s',
+                  fontFamily: '"IBM Plex Sans", sans-serif',
+                  letterSpacing: '0.02em',
+                }}
+                onMouseEnter={(e) => {
+                  if (githubToken && !loading) e.target.style.background = '#1e293b';
+                }}
+                onMouseLeave={(e) => {
+                  if (githubToken && !loading) e.target.style.background = '#0f172a';
+                }}
+              >
+                {loading ? 'Connecting...' : 'Connect to Repository'}
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div style={{
+          minHeight: '100vh',
+          background: '#fafafa',
+          fontFamily: '"IBM Plex Sans", sans-serif',
+        }}>
+          <div style={{
+            background: 'white',
+            borderBottom: '1px solid #e5e7eb',
+            position: 'sticky',
+            top: 0,
+            zIndex: 100,
+          }}>
+            <div style={{
+              maxWidth: '1400px',
+              margin: '0 auto',
+              padding: '1.5rem 2rem',
+            }}>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                marginBottom: '1rem',
+              }}>
+                <div>
+                  <h1 style={{
+                    fontSize: '1.75rem',
+                    fontWeight: '600',
+                    color: '#0f172a',
+                    marginBottom: '0.25rem',
+                    fontFamily: '"Crimson Pro", Georgia, serif',
+                    letterSpacing: '-0.02em',
+                  }}>
+                    Cherry-Pick Commits
+                  </h1>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    color: '#64748b',
+                    fontSize: '0.875rem',
+                  }}>
+                    <GitBranch size={14} />
+                    <span style={{ fontFamily: '"IBM Plex Mono", monospace' }}>
+                      {SOURCE_BRANCH}
+                    </span>
+                    <ChevronRight size={14} />
+                    <span style={{ fontFamily: '"IBM Plex Mono", monospace' }}>
+                      {TARGET_BRANCH}
+                    </span>
+                  </div>
+                </div>
+                
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '1rem',
+                }}>
+                  <div style={{
+                    padding: '0.5rem 1rem',
+                    background: '#f1f5f9',
+                    borderRadius: '2px',
+                    fontSize: '0.875rem',
+                    fontWeight: '500',
+                  }}>
+                    <span style={{ color: '#64748b' }}>Selected:</span>{' '}
+                    <span style={{ color: '#0f172a' }}>{selectedCommits.size}</span>
+                  </div>
+                  
+                  <button
+                    onClick={clearToken}
+                    style={{
+                      padding: '0.75rem 1rem',
+                      background: 'transparent',
+                      color: '#64748b',
+                      border: '1px solid #e5e7eb',
+                      borderRadius: '2px',
+                      fontSize: '0.875rem',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.target.style.background = '#f8fafc';
+                      e.target.style.borderColor = '#cbd5e1';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.target.style.background = 'transparent';
+                      e.target.style.borderColor = '#e5e7eb';
+                    }}
+                  >
+                    Sign Out
+                  </button>
+                  
+                  <button
+                    onClick={createCherryPickPR}
+                    disabled={selectedCommits.size === 0 || prCreating}
+                    style={{
+                      padding: '0.75rem 1.5rem',
+                      background: selectedCommits.size > 0 && !prCreating ? '#0f172a' : '#cbd5e1',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '2px',
+                      fontSize: '0.938rem',
+                      fontWeight: '500',
+                      cursor: selectedCommits.size > 0 && !prCreating ? 'pointer' : 'not-allowed',
+                      transition: 'all 0.2s',
+                      letterSpacing: '0.01em',
+                    }}
+                    onMouseEnter={(e) => {
+                      if (selectedCommits.size > 0 && !prCreating) e.target.style.background = '#1e293b';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (selectedCommits.size > 0 && !prCreating) e.target.style.background = '#0f172a';
+                    }}
+                  >
+                    {prCreating ? 'Creating PR...' : 'Create Pull Request'}
+                  </button>
+                </div>
+              </div>
+              
+              <div style={{ position: 'relative' }}>
+                <Search
+                  size={18}
+                  style={{
+                    position: 'absolute',
+                    left: '0.875rem',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    color: '#94a3b8',
+                  }}
+                />
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search commits by message, author, or SHA..."
+                  style={{
+                    width: '100%',
+                    padding: '0.75rem 0.875rem 0.75rem 3rem',
+                    border: '2px solid #e5e7eb',
+                    borderRadius: '2px',
+                    fontSize: '0.938rem',
+                    outline: 'none',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#cbd5e1'}
+                  onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
+                />
+              </div>
+              
+              <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <label style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  color: '#64748b',
+                  userSelect: 'none',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={hideMergeCommits}
+                    onChange={(e) => setHideMergeCommits(e.target.checked)}
+                    style={{
+                      width: '16px',
+                      height: '16px',
+                      cursor: 'pointer',
+                    }}
+                  />
+                  Hide merge commits
+                </label>
+                <span style={{ color: '#94a3b8', fontSize: '0.813rem' }}>
+                  ({commits.filter(c => c.parents.length > 1 || c.commit.message.toLowerCase().startsWith('merge')).length} merge commits in total)
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {prUrl && (
+            <div style={{
+              maxWidth: '1400px',
+              margin: '2rem auto',
+              padding: '0 2rem',
+            }}>
+              <div style={{
+                padding: '1rem 1.5rem',
+                background: '#ecfdf5',
+                border: '1px solid #6ee7b7',
+                borderRadius: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                  <Check size={20} color="#059669" />
+                  <span style={{ color: '#065f46', fontWeight: '500' }}>
+                    Pull request created successfully!
+                  </span>
+                </div>
+                <a
+                  href={prUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: '#059669',
+                    textDecoration: 'none',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  View PR
+                  <ChevronRight size={16} />
+                </a>
+              </div>
+            </div>
+          )}
+
+          {error && (
+            <div style={{
+              maxWidth: '1400px',
+              margin: '2rem auto',
+              padding: '0 2rem',
+            }}>
+              <div style={{
+                padding: '1rem 1.5rem',
+                background: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '2px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.75rem',
+              }}>
+                <AlertCircle size={20} color="#dc2626" />
+                <span style={{ color: '#991b1b' }}>{error}</span>
+              </div>
+            </div>
+          )}
+
+          <div style={{
+            maxWidth: '1400px',
+            margin: '0 auto',
+            padding: '2rem',
+          }}>
+            <div style={{
+              display: 'grid',
+              gap: '0.75rem',
+            }}>
+              {filteredCommits.map((commit, index) => {
+                const isSelected = selectedCommits.has(commit.sha);
+                const messageLines = commit.commit.message.split('\n');
+                const title = messageLines[0];
+                const description = messageLines.slice(1).join('\n').trim();
+                
+                return (
+                  <div
+                    key={commit.sha}
+                    onClick={() => toggleCommit(commit.sha)}
+                    style={{
+                      background: 'white',
+                      border: `2px solid ${isSelected ? '#0f172a' : '#e5e7eb'}`,
+                      borderRadius: '2px',
+                      padding: '1.25rem',
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                      position: 'relative',
+                      animation: `slideIn 0.3s ease-out ${index * 0.03}s both`,
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!isSelected) e.currentTarget.style.borderColor = '#cbd5e1';
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!isSelected) e.currentTarget.style.borderColor = '#e5e7eb';
+                    }}
+                  >
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '1rem',
+                    }}>
+                      <div style={{
+                        width: '22px',
+                        height: '22px',
+                        border: `2px solid ${isSelected ? '#0f172a' : '#cbd5e1'}`,
+                        borderRadius: '2px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: isSelected ? '#0f172a' : 'white',
+                        transition: 'all 0.15s',
+                        flexShrink: 0,
+                        marginTop: '2px',
+                      }}>
+                        {isSelected && <Check size={14} color="white" strokeWidth={3} />}
+                      </div>
+                      
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          fontSize: '1rem',
+                          color: '#0f172a',
+                          marginBottom: description ? '0.5rem' : '0.75rem',
+                          fontWeight: '500',
+                          lineHeight: '1.5',
+                        }}>
+                          {title}
+                        </div>
+                        
+                        {description && (
+                          <div style={{
+                            fontSize: '0.875rem',
+                            color: '#64748b',
+                            lineHeight: '1.6',
+                            marginBottom: '0.75rem',
+                            whiteSpace: 'pre-wrap',
+                            fontFamily: '"IBM Plex Sans", sans-serif',
+                          }}>
+                            {description}
+                          </div>
+                        )}
+                        
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '1rem',
+                          fontSize: '0.813rem',
+                          color: '#64748b',
+                          flexWrap: 'wrap',
+                        }}>
+                          <div style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.375rem',
+                          }}>
+                            <GitCommit size={13} />
+                            <code style={{
+                              fontFamily: '"IBM Plex Mono", monospace',
+                              fontSize: '0.813rem',
+                            }}>
+                              {commit.sha.substring(0, 7)}
+                            </code>
+                          </div>
+                          
+                          <span>{commit.commit.author.name}</span>
+                          
+                          <span>{formatDate(commit.commit.author.date)}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            
+            {filteredCommits.length === 0 && searchTerm && (
+              <div style={{
+                textAlign: 'center',
+                padding: '4rem 2rem',
+                color: '#94a3b8',
+              }}>
+                <Search size={48} style={{ marginBottom: '1rem', opacity: 0.5 }} />
+                <p style={{ fontSize: '1.125rem' }}>No commits found matching "{searchTerm}"</p>
+              </div>
+            )}
+          </div>
+
+          <style>{`
+            @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+            
+            @keyframes slideIn {
+              from {
+                opacity: 0;
+                transform: translateY(10px);
+              }
+              to {
+                opacity: 1;
+                transform: translateY(0);
+              }
+            }
+            
+            * {
+              box-sizing: border-box;
+              margin: 0;
+              padding: 0;
+            }
+          `}</style>
+        </div>
+      );
+    };
+
+    ReactDOM.render(<CommitCherryPicker />, document.getElementById('root'));
+  </script>
+</body>
+</html>
