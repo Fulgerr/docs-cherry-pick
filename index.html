@@ -830,14 +830,13 @@
                 return `
                     <div class="commit-card ${isSelected ? 'selected' : ''}" 
                          data-sha="${commit.sha}"
-                         onclick="toggleCommit('${commit.sha}')"
                          style="animation-delay: ${index * 0.05}s">
                         <div class="commit-card-header">
                             <input type="radio" 
                                    name="commitSelection"
                                    class="commit-checkbox" 
-                                   ${isSelected ? 'checked' : ''}
-                                   onclick="event.stopPropagation(); toggleCommit('${commit.sha}')">
+                                   value="${commit.sha}"
+                                   ${isSelected ? 'checked' : ''}>
                             <div class="commit-info">
                                 <div class="commit-title">${escapeHtml(title)}</div>
                                 <div class="commit-hash">#${shortSha}</div>
@@ -851,6 +850,23 @@
                     </div>
                 `;
             }).join('');
+            
+            // Add event listeners after rendering
+            container.querySelectorAll('.commit-card').forEach(card => {
+                card.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('commit-checkbox')) return;
+                    const sha = this.dataset.sha;
+                    selectCommit(sha);
+                });
+            });
+            
+            container.querySelectorAll('.commit-checkbox').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.checked) {
+                        selectCommit(this.value);
+                    }
+                });
+            });
         }
 
         function filterCommits() {
@@ -858,12 +874,8 @@
         }
 
         // Commit Selection
-        function toggleCommit(sha) {
-            if (selectedCommit === sha) {
-                selectedCommit = null; // Deselect if clicking the same commit
-            } else {
-                selectedCommit = sha; // Select new commit
-            }
+        function selectCommit(sha) {
+            selectedCommit = sha;
             updateSelectionUI();
         }
 
@@ -891,10 +903,10 @@
                 const radio = card.querySelector('.commit-checkbox');
                 if (selectedCommit === sha) {
                     card.classList.add('selected');
-                    radio.checked = true;
+                    if (radio) radio.checked = true;
                 } else {
                     card.classList.remove('selected');
-                    radio.checked = false;
+                    if (radio) radio.checked = false;
                 }
             });
         }
