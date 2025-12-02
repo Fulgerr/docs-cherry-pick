@@ -1082,10 +1082,6 @@
                 return this.request(`/repos/${CONFIG.repo}/commits?sha=${branch}&per_page=100`);
             },
 
-            async compareCommits(base, head) {
-                return this.request(`/repos/${CONFIG.repo}/compare/${base}...${head}`);
-            },
-
             async getCommitDetails(sha) {
                 return this.request(`/repos/${CONFIG.repo}/commits/${sha}`);
             },
@@ -1234,19 +1230,31 @@
             ui.show('loadingScreen');
 
             try {
-                // Use GitHub's compare API to get commits on develop but not on main
-                const comparison = await github.compareCommits(CONFIG.targetBranch, CONFIG.sourceBranch);
-                const openPRs = await github.getOpenPRs();
+                // Load commits from both branches
+                const [developCommits, mainCommits, openPRs] = await Promise.all([
+                    github.getCommits(CONFIG.sourceBranch),
+                    github.getCommits(CONFIG.targetBranch),
+                    github.getOpenPRs()
+                ]);
 
                 // Filter to only PRs targeting main branch
                 state.openPRs = openPRs.filter(pr => pr.base.ref === CONFIG.targetBranch);
 
-                // Get commits from the comparison (these are commits on develop not on main)
+                // Create a map of main commit tree SHAs for duplicate detection
+                const mainTreeShas = new Set(mainCommits.map(c => c.commit.tree.sha));
+
+                // Filter commits that are on develop but not on main, excluding merge commits
                 const uniqueCommits = [];
-                
-                for (const commit of comparison.commits) {
+                for (const commit of developCommits) {
                     // Skip merge commits entirely
                     if (commit.parents && commit.parents.length > 1) {
+                        continue;
+                    }
+
+                    const commitTreeSha = commit.commit.tree.sha;
+                    
+                    // Skip if this exact content exists on main (tree SHA comparison catches cherry-picks)
+                    if (mainTreeShas.has(commitTreeSha)) {
                         continue;
                     }
 
