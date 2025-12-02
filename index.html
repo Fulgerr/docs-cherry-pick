@@ -415,14 +415,24 @@
             font-size: 16px;
             font-weight: 600;
             color: var(--text-primary);
-            margin-bottom: 4px;
+            margin-bottom: 8px;
+        }
+
+        .commit-hash {
+            font-family: ui-monospace, monospace;
+            font-size: 13px;
+            color: var(--accent-primary);
+            margin-bottom: 8px;
         }
 
         .commit-description {
             color: var(--text-muted);
             font-size: 14px;
-            margin-top: 8px;
+            margin-top: 4px;
+            padding-top: 8px;
+            border-top: 1px solid var(--border-primary);
             white-space: pre-wrap;
+            line-height: 1.5;
         }
 
         .commit-meta {
@@ -805,7 +815,11 @@
 
             container.innerHTML = filteredCommits.map((commit, index) => {
                 const messageParts = commit.commit.message.split('\n');
-                const title = messageParts[0];
+                let title = messageParts[0];
+                
+                // Strip PR numbers like (#24) or (#123) from the title
+                title = title.replace(/\s*\(#\d+\)\s*$/, '');
+                
                 const description = messageParts.slice(1).join('\n').trim();
                 const shortSha = commit.sha.substring(0, 7);
                 const isSelected = selectedCommits.has(commit.sha);
@@ -823,7 +837,8 @@
                                    ${isSelected ? 'checked' : ''}
                                    onclick="event.stopPropagation(); toggleCommit('${commit.sha}')">
                             <div class="commit-info">
-                                <div class="commit-title">${escapeHtml(title)} #${shortSha}</div>
+                                <div class="commit-title">${escapeHtml(title)}</div>
+                                <div class="commit-hash">#${shortSha}</div>
                                 ${description ? `<div class="commit-description">${escapeHtml(description)}</div>` : ''}
                                 <div class="commit-meta">
                                     <span>${escapeHtml(commit.commit.author.name)}</span>
