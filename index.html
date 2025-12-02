@@ -839,15 +839,19 @@
                     if (details.files && details.files.length > 0) {
                         details.files.forEach(file => {
                             const parts = file.filename.split('/');
+                            // If file has a directory path, add the root folder
                             if (parts.length > 1) {
                                 paths.add(parts[0]);
+                            } else {
+                                // File is in root directory
+                                paths.add('.');
                             }
                         });
                     }
 
                     uniqueCommits.push({
                         ...commit,
-                        paths: Array.from(paths),
+                        paths: Array.from(paths).sort(),
                         files: details.files
                     });
                 }
