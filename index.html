@@ -405,6 +405,7 @@
             height: 20px;
             margin-top: 2px;
             cursor: pointer;
+            accent-color: var(--accent-success);
         }
 
         .commit-info {
@@ -521,7 +522,7 @@
                         <span>→</span>
                         <span class="branch-badge">main</span>
                         <span class="selection-info">
-                            <strong id="selectedCount">0</strong> selected
+                            <span id="selectedCount">None</span> selected
                         </span>
                     </div>
                     <div class="header-actions">
@@ -575,7 +576,7 @@
 
         let token = null;
         let allCommits = [];
-        let selectedCommits = new Set();
+        let selectedCommit = null; // Changed to single selection
 
         // Initialize
         window.addEventListener('DOMContentLoaded', init);
@@ -661,7 +662,7 @@
         function handleSignOut() {
             localStorage.removeItem(TOKEN_KEY);
             token = null;
-            selectedCommits.clear();
+            selectedCommit = null;
             allCommits = [];
             showLoginScreen();
         }
@@ -822,7 +823,7 @@
                 
                 const description = messageParts.slice(1).join('\n').trim();
                 const shortSha = commit.sha.substring(0, 7);
-                const isSelected = selectedCommits.has(commit.sha);
+                const isSelected = selectedCommit === commit.sha;
                 const date = new Date(commit.commit.author.date);
                 const relativeDate = getRelativeTime(date);
 
@@ -832,7 +833,8 @@
                          onclick="toggleCommit('${commit.sha}')"
                          style="animation-delay: ${index * 0.05}s">
                         <div class="commit-card-header">
-                            <input type="checkbox" 
+                            <input type="radio" 
+                                   name="commitSelection"
                                    class="commit-checkbox" 
                                    ${isSelected ? 'checked' : ''}
                                    onclick="event.stopPropagation(); toggleCommit('${commit.sha}')">
@@ -857,35 +859,49 @@
 
         // Commit Selection
         function toggleCommit(sha) {
-            if (selectedCommits.has(sha)) {
-                selectedCommits.delete(sha);
+            if (selectedCommit === sha) {
+                selectedCommit = null; // Deselect if clicking the same commit
             } else {
-                selectedCommits.add(sha);
+                selectedCommit = sha; // Select new commit
             }
             updateSelectionUI();
         }
 
         function updateSelectionUI() {
-            document.getElementById('selectedCount').textContent = selectedCommits.size;
-            document.getElementById('createPrBtn').disabled = selectedCommits.size === 0;
+            const countEl = document.getElementById('selectedCount');
+            const createBtn = document.getElementById('createPrBtn');
+            
+            if (selectedCommit) {
+                // Find the commit to show its short title
+                const commit = allCommits.find(c => c.sha === selectedCommit);
+                if (commit) {
+                    const title = commit.commit.message.split('\n')[0].replace(/\s*\(#\d+\)\s*$/, '');
+                    const shortTitle = title.length > 30 ? title.substring(0, 30) + '...' : title;
+                    countEl.innerHTML = `<strong>${shortTitle}</strong>`;
+                }
+                createBtn.disabled = false;
+            } else {
+                countEl.textContent = 'None';
+                createBtn.disabled = true;
+            }
             
             // Update commit cards
             document.querySelectorAll('.commit-card').forEach(card => {
                 const sha = card.dataset.sha;
-                const checkbox = card.querySelector('.commit-checkbox');
-                if (selectedCommits.has(sha)) {
+                const radio = card.querySelector('.commit-checkbox');
+                if (selectedCommit === sha) {
                     card.classList.add('selected');
-                    checkbox.checked = true;
+                    radio.checked = true;
                 } else {
                     card.classList.remove('selected');
-                    checkbox.checked = false;
+                    radio.checked = false;
                 }
             });
         }
 
         // Create PR
         async function handleCreatePR() {
-            if (selectedCommits.size === 0) return;
+            if (!selectedCommit) return;
 
             const createPrBtn = document.getElementById('createPrBtn');
             createPrBtn.disabled = true;
@@ -894,13 +910,15 @@
             closeBanner('successBanner');
 
             try {
-                // Get selected commit objects sorted by date (oldest first)
-                const selectedCommitObjects = allCommits
-                    .filter(c => selectedCommits.has(c.sha))
-                    .sort((a, b) => new Date(a.commit.author.date) - new Date(b.commit.author.date));
+                // Get selected commit object
+                const commit = allCommits.find(c => c.sha === selectedCommit);
+                
+                if (!commit) {
+                    throw new Error('Selected commit not found');
+                }
 
                 // Create branch name
-                const branchName = createBranchName(selectedCommitObjects);
+                const branchName = createBranchName([commit]);
 
                 // Get current main HEAD
                 const mainRef = await apiCall(`/repos/${REPO_OWNER}/${REPO_NAME}/git/ref/heads/${TARGET_BRANCH}`);
@@ -915,19 +933,16 @@
                     })
                 });
 
-                // Cherry-pick commits
-                let currentSha = mainSha;
-                for (const commit of selectedCommitObjects) {
-                    currentSha = await cherryPickCommit(commit.sha, currentSha, branchName);
-                }
+                // Cherry-pick commit
+                await cherryPickCommit(commit.sha, mainSha, branchName);
 
                 // Create PR
-                const pr = await createPullRequest(branchName, selectedCommitObjects);
+                const pr = await createPullRequest(branchName, [commit]);
 
                 showSuccess(`Pull request created successfully! <a href="${pr.html_url}" target="_blank">View PR #${pr.number}</a>`);
                 
                 // Clear selection and reload commits
-                selectedCommits.clear();
+                selectedCommit = null;
                 updateSelectionUI();
                 await loadCommits();
 
@@ -949,11 +964,7 @@
                 .replace(/[^a-z0-9\/]+/g, '-')
                 .replace(/^-+|-+$/g, '');
 
-            if (commits.length === 1) {
-                return `release/${sanitized}`;
-            } else {
-                return `release/${sanitized}-plus-${commits.length - 1}-more`;
-            }
+            return `release/${sanitized}`;
         }
 
         async function cherryPickCommit(commitSha, parentSha, branchName) {
@@ -991,42 +1002,18 @@
         }
 
         async function createPullRequest(branchName, commits) {
-            let title, body;
+            const commit = commits[0];
+            const messageParts = commit.commit.message.split('\n');
+            const title = messageParts[0];
+            const description = messageParts.slice(1).join('\n').trim();
 
-            if (commits.length === 1) {
-                const commit = commits[0];
-                const messageParts = commit.commit.message.split('\n');
-                title = messageParts[0];
-                const description = messageParts.slice(1).join('\n').trim();
-
-                body = `Cherry-picking commit [${commit.sha.substring(0, 7)}](https://github.com/${REPO_OWNER}/${REPO_NAME}/commit/${commit.sha})\n\n`;
-                
-                if (description) {
-                    body += `${description}\n\n`;
-                }
-
-                body += `---\n*Created with Cherry-Pick Tool*`;
-            } else {
-                const firstCommit = commits[0];
-                title = `${firstCommit.commit.message.split('\n')[0]} (+${commits.length - 1} more commits)`;
-
-                body = `Cherry-picking ${commits.length} commits:\n\n`;
-
-                commits.forEach(commit => {
-                    const messageParts = commit.commit.message.split('\n');
-                    const commitTitle = messageParts[0];
-                    const description = messageParts.slice(1).join('\n').trim();
-
-                    body += `### [${commit.sha.substring(0, 7)}](https://github.com/${REPO_OWNER}/${REPO_NAME}/commit/${commit.sha}) ${commitTitle}\n\n`;
-                    
-                    if (description) {
-                        body += `${description}\n\n`;
-                    }
-                });
-
-                body += `---\n*Created with Cherry-Pick Tool*`;
+            let body = `Cherry-picking commit [${commit.sha.substring(0, 7)}](https://github.com/${REPO_OWNER}/${REPO_NAME}/commit/${commit.sha})\n\n`;
+            
+            if (description) {
+                body += `${description}\n\n`;
             }
 
+            body += `---\n*Created with Cherry-Pick Tool*`;
             body += `\n\n> **Note:** If there are conflicts, please resolve them in GitHub's web interface before merging.`;
 
             return await apiCall(`/repos/${REPO_OWNER}/${REPO_NAME}/pulls`, {
