@@ -1082,6 +1082,10 @@
                 return this.request(`/repos/${CONFIG.repo}/commits?sha=${branch}&per_page=100`);
             },
 
+            async compareCommits(base, head) {
+                return this.request(`/repos/${CONFIG.repo}/compare/${base}...${head}`);
+            },
+
             async getCommitDetails(sha) {
                 return this.request(`/repos/${CONFIG.repo}/commits/${sha}`);
             },
@@ -1101,17 +1105,34 @@
             },
 
             async cherryPick(branchName, commitSha) {
+                // Get the commit we want to cherry-pick
                 const commit = await this.getCommitDetails(commitSha);
-                const branch = await this.getBranch(branchName);
                 
-                return this.request(`/repos/${CONFIG.repo}/merges`, {
+                // Get current branch state
+                const branch = await this.getBranch(branchName);
+                const currentCommitSha = branch.commit.sha;
+                
+                // Create a new commit with the same tree and message, but new parent
+                const newCommit = await this.request(`/repos/${CONFIG.repo}/git/commits`, {
                     method: 'POST',
                     body: JSON.stringify({
-                        base: branchName,
-                        head: commitSha,
-                        commit_message: commit.commit.message
+                        message: commit.commit.message,
+                        tree: commit.commit.tree.sha,
+                        parents: [currentCommitSha],
+                        author: commit.commit.author,
+                        committer: commit.commit.committer
                     })
                 });
+                
+                // Update branch to point to new commit
+                await this.request(`/repos/${CONFIG.repo}/git/refs/heads/${branchName}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        sha: newCommit.sha
+                    })
+                });
+                
+                return newCommit;
             },
 
             async createPR(title, body, head, base = CONFIG.targetBranch) {
@@ -1213,31 +1234,19 @@
             ui.show('loadingScreen');
 
             try {
-                // Load commits from both branches
-                const [developCommits, mainCommits, openPRs] = await Promise.all([
-                    github.getCommits(CONFIG.sourceBranch),
-                    github.getCommits(CONFIG.targetBranch),
-                    github.getOpenPRs()
-                ]);
+                // Use GitHub's compare API to get commits on develop but not on main
+                const comparison = await github.compareCommits(CONFIG.targetBranch, CONFIG.sourceBranch);
+                const openPRs = await github.getOpenPRs();
 
                 // Filter to only PRs targeting main branch
                 state.openPRs = openPRs.filter(pr => pr.base.ref === CONFIG.targetBranch);
 
-                // Create a map of main commit tree SHAs for duplicate detection
-                const mainTreeShas = new Set(mainCommits.map(c => c.commit.tree.sha));
-
-                // Filter commits that are on develop but not on main, excluding merge commits
+                // Get commits from the comparison (these are commits on develop not on main)
                 const uniqueCommits = [];
-                for (const commit of developCommits) {
+                
+                for (const commit of comparison.commits) {
                     // Skip merge commits entirely
                     if (commit.parents && commit.parents.length > 1) {
-                        continue;
-                    }
-
-                    const commitTreeSha = commit.commit.tree.sha;
-                    
-                    // Skip if this exact content exists on main
-                    if (mainTreeShas.has(commitTreeSha)) {
                         continue;
                     }
 
@@ -1530,7 +1539,7 @@
                                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                                         <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 5.372v5.256a2.251 2.251 0 111.5 0V5.372A2.25 2.25 0 105 5.372zM11.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372a2.25 2.25 0 01-1.5-2.122z"></path>
                                     </svg>
-                                    Already in open PR to main #${relatedPR.number} - Click to view
+                                    Already in open PR #${relatedPR.number} - Click to view
                                 </a>
                             </div>
                         ` : ''}
