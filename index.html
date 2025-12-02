@@ -375,6 +375,31 @@
             cursor: not-allowed;
         }
 
+        .btn-small.loading {
+            position: relative;
+            color: transparent;
+        }
+
+        .btn-small.loading::after {
+            content: "";
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid transparent;
+            border-top-color: currentColor;
+            border-radius: 50%;
+            animation: button-spin 0.6s linear infinite;
+            color: white;
+        }
+
+        @keyframes button-spin {
+            to { transform: rotate(360deg); }
+        }
+
         .branch-info {
             display: flex;
             gap: 20px;
@@ -689,6 +714,161 @@
             font-size: 14px;
         }
 
+        /* Success Message */
+        .success-message {
+            background: var(--success-bg);
+            border: 1px solid var(--success-border);
+            border-radius: 6px;
+            padding: 16px;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .success-message svg {
+            flex-shrink: 0;
+            color: var(--success-text);
+        }
+
+        .success-message-content {
+            flex: 1;
+        }
+
+        .success-message-title {
+            font-weight: 600;
+            color: var(--success-text);
+            margin-bottom: 4px;
+            font-size: 14px;
+        }
+
+        .success-message-link {
+            color: var(--success-text);
+            text-decoration: none;
+            font-size: 14px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .success-message-link:hover {
+            text-decoration: underline;
+        }
+
+        .success-message-close {
+            background: none;
+            border: none;
+            color: var(--success-text);
+            cursor: pointer;
+            padding: 4px;
+            display: flex;
+            align-items: center;
+            opacity: 0.7;
+            transition: opacity 0.2s;
+        }
+
+        .success-message-close:hover {
+            opacity: 1;
+        }
+
+        /* Loading Bar */
+        .loading-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--accent-primary);
+            transform: scaleX(0);
+            transform-origin: left;
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            opacity: 0;
+        }
+
+        .loading-bar.active {
+            opacity: 1;
+            animation: loadingProgress 2s ease-in-out infinite;
+        }
+
+        @keyframes loadingProgress {
+            0% {
+                transform: scaleX(0);
+            }
+            50% {
+                transform: scaleX(0.7);
+            }
+            100% {
+                transform: scaleX(0.95);
+            }
+        }
+
+        /* PR Success Result */
+        .pr-result {
+            background: var(--success-bg);
+            border: 2px solid var(--success-border);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        .pr-result-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+
+        .pr-result-icon {
+            width: 24px;
+            height: 24px;
+            color: var(--success-text);
+            flex-shrink: 0;
+        }
+
+        .pr-result-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--success-text);
+        }
+
+        .pr-result-content {
+            padding-left: 36px;
+        }
+
+        .pr-result-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            background: var(--success-text);
+            color: white;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 14px;
+            transition: opacity 0.2s;
+            margin-top: 8px;
+        }
+
+        .pr-result-link:hover {
+            opacity: 0.9;
+        }
+
+        .pr-result-link svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        .pr-result-meta {
+            margin-top: 12px;
+            font-size: 13px;
+            color: var(--success-text);
+            opacity: 0.9;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .header-top {
@@ -754,6 +934,9 @@
 
     <!-- Main App -->
     <div id="mainApp" class="hidden">
+        <!-- Loading Bar -->
+        <div id="loadingBar" class="loading-bar"></div>
+
         <!-- Alert Container -->
         <div id="alertContainer"></div>
 
@@ -800,6 +983,9 @@
                 </svg>
                 <span>This operation promotes commits to <strong>main</strong>. Once approved and merged, changes go to <strong>production</strong>.</span>
             </div>
+
+            <!-- Success Message -->
+            <div id="successMessage" class="hidden"></div>
 
             <!-- Controls -->
             <div class="controls">
@@ -969,6 +1155,34 @@
 
             clearAlerts() {
                 document.getElementById('alertContainer').innerHTML = '';
+            },
+
+            showSuccess(prNumber, prUrl) {
+                const container = document.getElementById('successMessage');
+                container.className = 'success-message';
+                container.innerHTML = `
+                    <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"></path>
+                    </svg>
+                    <div class="success-message-content">
+                        <div class="success-message-title">Pull request created successfully</div>
+                        <a href="${prUrl}" target="_blank" class="success-message-link">
+                            View PR #${prNumber}
+                            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M3.75 2a.75.75 0 01.75.75v7.5a.75.75 0 01-1.5 0v-7.5A.75.75 0 013.75 2zm8.25 8.25a.75.75 0 00-1.5 0v2.19l-2.72-2.72a.75.75 0 00-1.06 1.06l2.72 2.72h-2.19a.75.75 0 000 1.5h4a.75.75 0 00.75-.75v-4z"></path>
+                            </svg>
+                        </a>
+                    </div>
+                    <button class="success-message-close" onclick="document.getElementById('successMessage').classList.add('hidden')">
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M3.72 3.72a.75.75 0 011.06 0L8 6.94l3.22-3.22a.75.75 0 111.06 1.06L9.06 8l3.22 3.22a.75.75 0 11-1.06 1.06L8 9.06l-3.22 3.22a.75.75 0 01-1.06-1.06L6.94 8 3.72 4.78a.75.75 0 010-1.06z"></path>
+                        </svg>
+                    </button>
+                `;
+            },
+
+            hideSuccess() {
+                document.getElementById('successMessage').classList.add('hidden');
             }
         };
 
@@ -1135,7 +1349,10 @@
                 }
             }
 
-            ui.showAlert('Creating pull request...', 'success');
+            const createBtn = document.getElementById('createPrBtn');
+            createBtn.disabled = true;
+            createBtn.classList.add('loading');
+            ui.hideSuccess();
 
             try {
                 // Get current main HEAD
@@ -1199,11 +1416,8 @@
                 // Create PR
                 const pr = await github.createPR(prTitle, prBody, branchName);
 
-                ui.clearAlerts();
-                ui.showAlert(
-                    `✅ Pull request created successfully! <a href="${pr.html_url}" target="_blank">View PR #${pr.number}</a>`,
-                    'success'
-                );
+                // Show success message
+                ui.showSuccess(pr.number, pr.html_url);
 
                 // Clear selection
                 state.selectedCommits.clear();
@@ -1216,6 +1430,9 @@
             } catch (error) {
                 console.error('Failed to create PR:', error);
                 ui.showAlert(`Failed to create pull request: ${error.message}`, 'error');
+            } finally {
+                createBtn.disabled = false;
+                createBtn.classList.remove('loading');
             }
         }
 
