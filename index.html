@@ -1,1163 +1,1052 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cherry-Pick Tool | Test Repo</title>
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitHub Cherry-Pick Tool</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #1f2937;
+            --border-primary: #30363d;
+            --text-primary: #f0f6fc;
+            --text-secondary: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent-primary: #58a6ff;
+            --accent-success: #238636;
+            --accent-success-hover: #2ea043;
+            --accent-error: #da3633;
+            --shadow: rgba(0, 0, 0, 0.3);
+        }
+
+        body.light-theme {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f6f8fa;
+            --bg-tertiary: #eaeef2;
+            --border-primary: #d0d7de;
+            --text-primary: #1f2328;
+            --text-secondary: #1f2328;
+            --text-muted: #656d76;
+            --accent-primary: #0969da;
+            --accent-success: #1a7f37;
+            --accent-success-hover: #2da44e;
+            --accent-error: #cf222e;
+            --shadow: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-secondary);
+            line-height: 1.6;
+            transition: background 0.2s, color 0.2s;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        /* Login Screen */
+        .login-screen {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .login-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 12px;
+            padding: 40px;
+            width: 100%;
+            max-width: 440px;
+            box-shadow: 0 8px 24px var(--shadow);
+        }
+
+        .login-card h1 {
+            font-size: 24px;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .login-card p {
+            color: var(--text-muted);
+            margin-bottom: 24px;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-primary);
+            border: 1px solid var(--border-primary);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-family: ui-monospace, monospace;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.15);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px 20px;
+            background: var(--accent-success);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn:hover:not(:disabled) {
+            background: var(--accent-success-hover);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            color: var(--text-secondary);
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: var(--bg-tertiary);
+        }
+
+        .help-text {
+            margin-top: 16px;
+            padding: 12px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .help-text a {
+            color: var(--accent-primary);
+            text-decoration: none;
+        }
+
+        .help-text a:hover {
+            text-decoration: underline;
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+        }
+
+        .spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border-primary);
+            border-top-color: var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 16px;
+            color: var(--text-muted);
+        }
+
+        /* Main Screen */
+        .main-screen {
+            display: none;
+        }
+
+        .header {
+            position: sticky;
+            top: 0;
+            background: var(--bg-primary);
+            border-bottom: 1px solid var(--border-primary);
+            padding: 16px 0;
+            z-index: 100;
+            margin-bottom: 20px;
+        }
+
+        .header-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .branch-info {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+        }
+
+        .branch-badge {
+            padding: 4px 8px;
+            background: var(--bg-tertiary);
+            border-radius: 6px;
+            font-family: ui-monospace, monospace;
+            color: var(--accent-primary);
+        }
+
+        .selection-info {
+            color: var(--text-muted);
+            font-size: 14px;
+        }
+
+        .selection-info strong {
+            color: var(--text-primary);
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 16px;
+        }
+
+        .btn-small {
+            padding: 8px 16px;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: var(--accent-success);
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: var(--accent-success-hover);
+        }
+
+        .theme-switcher {
+            padding: 8px 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 18px;
+            transition: background 0.2s;
+        }
+
+        .theme-switcher:hover {
+            background: var(--bg-tertiary);
+        }
+
+        /* Banner */
+        .banner {
+            padding: 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .banner.show {
+            display: flex;
+        }
+
+        .banner-success {
+            background: var(--accent-success);
+            border: 1px solid var(--accent-success-hover);
+            color: white;
+        }
+
+        .banner-error {
+            background: var(--accent-error);
+            border: 1px solid var(--accent-error);
+            color: white;
+        }
+
+        .banner-content {
+            flex: 1;
+        }
+
+        .banner a {
+            color: white;
+            text-decoration: underline;
+        }
+
+        .banner-close {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 20px;
+            padding: 0 8px;
+        }
+
+        /* Controls */
+        .controls {
+            margin-bottom: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-primary);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: var(--accent-primary);
+        }
+
+        .filter-toggle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .filter-toggle input {
+            cursor: pointer;
+        }
+
+        .merge-count {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        /* Commits */
+        .commits-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .commit-card {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-primary);
+            border-radius: 8px;
+            padding: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            opacity: 0;
+            animation: fadeIn 0.3s forwards;
+        }
+
+        @keyframes fadeIn {
+            to {
+                opacity: 1;
+            }
+        }
+
+        .commit-card:hover {
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+        }
+
+        .commit-card.selected {
+            border-color: var(--accent-success);
+            background: var(--bg-tertiary);
+        }
+
+        body.light-theme .commit-card.selected {
+            background: #f0f9ff;
+        }
+
+        .commit-card-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 8px;
+        }
+
+        .commit-checkbox {
+            width: 20px;
+            height: 20px;
+            margin-top: 2px;
+            cursor: pointer;
+        }
+
+        .commit-info {
+            flex: 1;
+        }
+
+        .commit-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .commit-description {
+            color: var(--text-muted);
+            font-size: 14px;
+            margin-top: 8px;
+            white-space: pre-wrap;
+        }
+
+        .commit-meta {
+            display: flex;
+            gap: 16px;
+            font-size: 13px;
+            color: var(--text-muted);
+            margin-top: 8px;
+        }
+
+        .commit-sha {
+            font-family: ui-monospace, monospace;
+            color: var(--accent-primary);
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state h2 {
+            font-size: 20px;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header-content {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .header-actions {
+                width: 100%;
+            }
+
+            .btn-small {
+                flex: 1;
+            }
+        }
+    </style>
 </head>
 <body>
-  <div id="root"></div>
-  
-  <script type="text/babel">
-    const { useState, useEffect } = React;
-    
-    // Lucide React icons as inline SVG components
-    const Search = ({ size = 24, color = "currentColor", ...props }) => (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <circle cx="11" cy="11" r="8"></circle>
-        <path d="m 21 21-4.35-4.35"></path>
-      </svg>
-    );
-    
-    const GitBranch = ({ size = 24, color = "currentColor", ...props }) => (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <line x1="6" y1="3" x2="6" y2="15"></line>
-        <circle cx="18" cy="6" r="3"></circle>
-        <circle cx="6" cy="18" r="3"></circle>
-        <path d="M18 9a9 9 0 0 1-9 9"></path>
-      </svg>
-    );
-    
-    const GitCommit = ({ size = 24, color = "currentColor", ...props }) => (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <circle cx="12" cy="12" r="3"></circle>
-        <line x1="3" y1="12" x2="9" y2="12"></line>
-        <line x1="15" y1="12" x2="21" y2="12"></line>
-      </svg>
-    );
-    
-    const Check = ({ size = 24, color = "currentColor", strokeWidth = 2, ...props }) => (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <polyline points="20 6 9 17 4 12"></polyline>
-      </svg>
-    );
-    
-    const AlertCircle = ({ size = 24, color = "currentColor", ...props }) => (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="12" y1="8" x2="12" y2="12"></line>
-        <line x1="12" y1="16" x2="12.01" y2="16"></line>
-      </svg>
-    );
-    
-    const ChevronRight = ({ size = 24, color = "currentColor", ...props }) => (
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-        <polyline points="9 18 15 12 9 6"></polyline>
-      </svg>
-    );
-
-    const CommitCherryPicker = () => {
-      const [githubToken, setGithubToken] = useState('');
-      const [isAuthenticated, setIsAuthenticated] = useState(false);
-      const [commits, setCommits] = useState([]);
-      const [selectedCommits, setSelectedCommits] = useState(new Set());
-      const [searchTerm, setSearchTerm] = useState('');
-      const [loading, setLoading] = useState(false);
-      const [error, setError] = useState('');
-      const [prCreating, setPrCreating] = useState(false);
-      const [prUrl, setPrUrl] = useState('');
-      const [hideMergeCommits, setHideMergeCommits] = useState(true);
-      
-      const REPO_OWNER = 'Fulgerr';
-      const REPO_NAME = 'docs-pilot';
-      const SOURCE_BRANCH = 'develop';
-      const TARGET_BRANCH = 'main';
-      
-      // Load token from localStorage on mount
-      useEffect(() => {
-        const savedToken = localStorage.getItem('github_token_test');
-        if (savedToken) {
-          setGithubToken(savedToken);
-          console.log('Loaded saved token from localStorage');
-          // Auto-authenticate with saved token
-          autoAuthenticate(savedToken);
-        }
-      }, []);
-      
-      const autoAuthenticate = async (token) => {
-        setLoading(true);
-        setError('');
-        
-        try {
-          const userResponse = await fetch('https://api.github.com/user', {
-            headers: {
-              'Authorization': `token ${token}`,
-              'Accept': 'application/vnd.github.v3+json',
-            },
-          });
-
-          if (!userResponse.ok) {
-            console.log('Saved token is invalid, showing login screen');
-            return;
-          }
-
-          const userData = await userResponse.json();
-          console.log('Auto-authenticated as:', userData.login);
-
-          const compareResponse = await fetch(
-            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/compare/${TARGET_BRANCH}...${SOURCE_BRANCH}`,
-            {
-              headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json',
-              },
-            }
-          );
-
-          if (!compareResponse.ok) {
-            const errorData = await compareResponse.json();
-            console.error('Failed to fetch commits:', errorData);
-            setError('Could not load commits. Please try again.');
-            return;
-          }
-
-          const compareData = await compareResponse.json();
-          console.log('Compare API response status:', compareData.status);
-          console.log(`Found ${compareData.commits.length} commits on ${SOURCE_BRANCH} that are not on ${TARGET_BRANCH}`);
-          
-          const mainCommitsResponse = await fetch(
-            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?sha=${TARGET_BRANCH}&per_page=100`,
-            {
-              headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json',
-              },
-            }
-          );
-          
-          if (mainCommitsResponse.ok) {
-            const mainCommits = await mainCommitsResponse.json();
-            const mainTreeShas = new Set(mainCommits.map(c => c.commit.tree.sha));
-            const mainMessages = new Set(mainCommits.map(c => c.commit.message.trim()));
+    <!-- Login Screen -->
+    <div id="loginScreen" class="login-screen">
+        <div class="login-card">
+            <h1>GitHub Cherry-Pick Tool</h1>
+            <p>Connect to Fulgerr/docs-pilot</p>
             
-            const uniqueCommits = compareData.commits.filter(c => {
-              const treeExists = mainTreeShas.has(c.commit.tree.sha);
-              const messageExists = mainMessages.has(c.commit.message.trim());
-              
-              if (treeExists) {
-                console.log(`Filtering out commit ${c.sha.substring(0, 7)} - identical tree SHA found in main (cherry-picked content)`);
-                return false;
-              }
-              
-              if (messageExists) {
-                console.log(`Filtering out commit ${c.sha.substring(0, 7)} - duplicate message found in main`);
-                return false;
-              }
-              
-              return true;
-            });
-            
-            console.log(`Filtered out ${compareData.commits.length - uniqueCommits.length} commits already applied to main`);
-            setCommits(uniqueCommits);
-          } else {
-            console.warn('Could not fetch main commits for duplicate detection, showing all commits from compare');
-            setCommits(compareData.commits);
-          }
-          
-          setIsAuthenticated(true);
-        } catch (err) {
-          console.error('Auto-authentication failed:', err);
-          setError('');
-        } finally {
-          setLoading(false);
-        }
-      };
-      
-      // Save token to localStorage when it changes
-      const handleTokenChange = (token) => {
-        setGithubToken(token);
-        if (token) {
-          localStorage.setItem('github_token_test', token);
-        } else {
-          localStorage.removeItem('github_token_test');
-        }
-      };
-      
-      const clearToken = () => {
-        setGithubToken('');
-        setIsAuthenticated(false);
-        localStorage.removeItem('github_token_test');
-        setCommits([]);
-        setSelectedCommits(new Set());
-      };
-
-      const fetchCommits = async () => {
-        setLoading(true);
-        setError('');
-        
-        try {
-          const userResponse = await fetch('https://api.github.com/user', {
-            headers: {
-              'Authorization': `token ${githubToken}`,
-              'Accept': 'application/vnd.github.v3+json',
-            },
-          });
-
-          if (!userResponse.ok) {
-            if (userResponse.status === 401) {
-              throw new Error('Invalid token. Please check your Personal Access Token.');
-            }
-            throw new Error(`Authentication failed: ${userResponse.statusText}`);
-          }
-
-          const userData = await userResponse.json();
-          console.log('Authenticated as:', userData.login);
-
-          // Use GitHub's compare API to get commits on develop but not on main
-          const compareResponse = await fetch(
-            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/compare/${TARGET_BRANCH}...${SOURCE_BRANCH}`,
-            {
-              headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-              },
-            }
-          );
-
-          if (!compareResponse.ok) {
-            const errorData = await compareResponse.json();
-            if (compareResponse.status === 404) {
-              throw new Error(`Repository not found or no access. Check: 1) Repository exists, 2) Token has 'repo' scope, 3) You have access to ${REPO_OWNER}/${REPO_NAME}`);
-            }
-            throw new Error(errorData.message || `Failed to compare branches: ${compareResponse.statusText}`);
-          }
-
-          const compareData = await compareResponse.json();
-          console.log('Compare API response status:', compareData.status);
-          console.log(`Found ${compareData.commits.length} commits on ${SOURCE_BRANCH} that are not on ${TARGET_BRANCH}`);
-          console.log('Ahead by:', compareData.ahead_by);
-          console.log('Behind by:', compareData.behind_by);
-          
-          // Fetch recent commits from main with their tree SHAs
-          const mainCommitsResponse = await fetch(
-            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/commits?sha=${TARGET_BRANCH}&per_page=100`,
-            {
-              headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-              },
-            }
-          );
-          
-          if (mainCommitsResponse.ok) {
-            const mainCommits = await mainCommitsResponse.json();
-            
-            // Create a set of tree SHAs from main
-            // Tree SHA represents the exact file state - if trees match, content is identical
-            const mainTreeShas = new Set(mainCommits.map(c => c.commit.tree.sha));
-            
-            // Also create a set of commit messages as secondary check
-            const mainMessages = new Set(mainCommits.map(c => c.commit.message.trim()));
-            
-            // Filter out commits whose content already exists in main
-            const uniqueCommits = compareData.commits.filter(c => {
-              const treeExists = mainTreeShas.has(c.commit.tree.sha);
-              const messageExists = mainMessages.has(c.commit.message.trim());
-              
-              if (treeExists) {
-                console.log(`Filtering out commit ${c.sha.substring(0, 7)} - identical tree SHA found in main (cherry-picked content)`);
-                return false;
-              }
-              
-              if (messageExists) {
-                console.log(`Filtering out commit ${c.sha.substring(0, 7)} - duplicate message found in main`);
-                return false;
-              }
-              
-              return true;
-            });
-            
-            console.log(`Filtered out ${compareData.commits.length - uniqueCommits.length} commits already applied to main`);
-            setCommits(uniqueCommits);
-          } else {
-            console.warn('Could not fetch main commits for duplicate detection, showing all commits from compare');
-            setCommits(compareData.commits);
-          }
-          
-          setIsAuthenticated(true);
-        } catch (err) {
-          setError(err.message);
-          setIsAuthenticated(false);
-        } finally {
-          setLoading(false);
-        }
-      };
-
-      const toggleCommit = (sha) => {
-        const newSelected = new Set(selectedCommits);
-        if (newSelected.has(sha)) {
-          newSelected.delete(sha);
-        } else {
-          newSelected.add(sha);
-        }
-        setSelectedCommits(newSelected);
-      };
-
-      const createCherryPickPR = async () => {
-        setPrCreating(true);
-        setError('');
-        
-        try {
-          console.log('Starting cherry-pick process...');
-          
-          const mainResponse = await fetch(
-            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/ref/heads/${TARGET_BRANCH}`,
-            {
-              headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-              },
-            }
-          );
-          
-          if (!mainResponse.ok) {
-            const errorData = await mainResponse.json();
-            console.error('Failed to fetch main branch:', errorData);
-            throw new Error(`Failed to fetch ${TARGET_BRANCH} branch: ${errorData.message || mainResponse.statusText}`);
-          }
-          
-          const mainData = await mainResponse.json();
-          const baseSha = mainData.object.sha;
-          console.log(`Base SHA from ${TARGET_BRANCH}:`, baseSha);
-          
-          const selectedCommitObjects = commits.filter(c => selectedCommits.has(c.sha)).reverse();
-          console.log('Selected commits:', selectedCommitObjects.map(c => c.sha.substring(0, 7)));
-          
-          const timestamp = Date.now();
-          let branchName;
-          let prTitle;
-          
-          if (selectedCommitObjects.length === 1) {
-            const commitMsg = selectedCommitObjects[0].commit.message.split('\n')[0];
-            const sanitized = commitMsg
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '-')
-              .replace(/^-+|-+$/g, '')
-              .substring(0, 50);
-            branchName = `release/${sanitized}`;
-            prTitle = commitMsg;
-          } else {
-            const firstCommit = selectedCommitObjects[0].commit.message.split('\n')[0];
-            const sanitized = firstCommit
-              .toLowerCase()
-              .replace(/[^a-z0-9]+/g, '-')
-              .replace(/^-+|-+$/g, '')
-              .substring(0, 40);
-            branchName = `release/${sanitized}-plus-${selectedCommitObjects.length - 1}-more`;
-            prTitle = `${firstCommit} (+${selectedCommitObjects.length - 1} more commits)`;
-          }
-          
-          console.log('Creating branch:', branchName);
-          
-          const createBranchResponse = await fetch(
-            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                ref: `refs/heads/${branchName}`,
-                sha: baseSha,
-              }),
-            }
-          );
-          
-          if (!createBranchResponse.ok) {
-            const errorData = await createBranchResponse.json();
-            console.error('Failed to create branch:', errorData);
-            throw new Error(`Failed to create branch: ${errorData.message || createBranchResponse.statusText}`);
-          }
-          
-          console.log('Branch created successfully');
-          
-          let currentSha = baseSha;
-          
-          for (let i = 0; i < selectedCommitObjects.length; i++) {
-            const commit = selectedCommitObjects[i];
-            console.log(`Cherry-picking commit ${i + 1}/${selectedCommitObjects.length}: ${commit.sha.substring(0, 7)}`);
-            
-            const cherryPickResponse = await fetch(
-              `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/commits/${commit.sha}`,
-              {
-                headers: {
-                  'Authorization': `token ${githubToken}`,
-                  'Accept': 'application/vnd.github.v3+json',
-                },
-              }
-            );
-            
-            if (!cherryPickResponse.ok) {
-              const errorData = await cherryPickResponse.json();
-              console.error(`Failed to fetch commit ${commit.sha}:`, errorData);
-              throw new Error(`Failed to fetch commit ${commit.sha}: ${errorData.message || cherryPickResponse.statusText}`);
-            }
-            
-            const commitData = await cherryPickResponse.json();
-            
-            const newCommitResponse = await fetch(
-              `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/commits`,
-              {
-                method: 'POST',
-                headers: {
-                  'Authorization': `token ${githubToken}`,
-                  'Accept': 'application/vnd.github.v3+json',
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  message: commitData.message,
-                  tree: commitData.tree.sha,
-                  parents: [currentSha],
-                }),
-              }
-            );
-            
-            if (!newCommitResponse.ok) {
-              const errorData = await newCommitResponse.json();
-              console.error(`Failed to create commit for ${commit.sha}:`, errorData);
-              throw new Error(`Failed to cherry-pick commit ${commit.sha}: ${errorData.message || newCommitResponse.statusText}`);
-            }
-            
-            const newCommitData = await newCommitResponse.json();
-            currentSha = newCommitData.sha;
-            console.log(`Created new commit: ${currentSha.substring(0, 7)}`);
-          }
-          
-          console.log('Updating branch reference...');
-          
-          const updateRefResponse = await fetch(
-            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${branchName}`,
-            {
-              method: 'PATCH',
-              headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                sha: currentSha,
-                force: true,
-              }),
-            }
-          );
-          
-          if (!updateRefResponse.ok) {
-            const errorData = await updateRefResponse.json();
-            console.error('Failed to update branch:', errorData);
-            throw new Error(`Failed to update branch: ${errorData.message || updateRefResponse.statusText}`);
-          }
-          
-          console.log('Branch updated successfully');
-          
-          const commitList = selectedCommitObjects
-            .map(c => `- ${c.sha.substring(0, 7)}: ${c.commit.message.split('\\n')[0]}`)
-            .join('\\n');
-          
-          const prBody = `This PR cherry-picks the following commits from \`${SOURCE_BRANCH}\` to \`${TARGET_BRANCH}\`:
-
-${commitList}
-
-## Selected Commits
-${selectedCommitObjects.map(c => `- [\`${c.sha.substring(0, 7)}\`](${c.html_url}) ${c.commit.message.split('\\n')[0]}`).join('\\n')}
-
----
-*Created via Commit Cherry-Picker Tool*
-
-**Note:** Please resolve any conflicts in the GitHub UI before merging.`;
-
-          console.log('Creating pull request...');
-          
-          const prResponse = await fetch(
-            `https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}/pulls`,
-            {
-              method: 'POST',
-              headers: {
-                'Authorization': `token ${githubToken}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                title: prTitle,
-                body: prBody,
-                head: branchName,
-                base: TARGET_BRANCH,
-              }),
-            }
-          );
-          
-          if (!prResponse.ok) {
-            const errorData = await prResponse.json();
-            console.error('Failed to create pull request:', errorData);
-            throw new Error(`Failed to create PR: ${errorData.message || prResponse.statusText}`);
-          }
-          
-          const prData = await prResponse.json();
-          console.log('Pull request created:', prData.html_url);
-          
-          setPrUrl(prData.html_url);
-          setSelectedCommits(new Set());
-          
-        } catch (err) {
-          console.error('Cherry-pick error:', err);
-          setError(err.message);
-        } finally {
-          setPrCreating(false);
-        }
-      };
-
-      const filteredCommits = commits.filter(commit => {
-        const message = commit.commit.message.toLowerCase();
-        const author = commit.commit.author.name.toLowerCase();
-        const sha = commit.sha.toLowerCase();
-        const term = searchTerm.toLowerCase();
-        const matchesSearch = message.includes(term) || author.includes(term) || sha.includes(term);
-        
-        if (!matchesSearch) return false;
-        
-        if (hideMergeCommits) {
-          const isMergeCommit = message.startsWith('merge') || commit.parents.length > 1;
-          if (isMergeCommit) return false;
-        }
-        
-        return true;
-      });
-
-      const formatDate = (dateString) => {
-        const date = new Date(dateString);
-        const now = new Date();
-        const diffMs = now - date;
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-        
-        if (diffDays === 0) return 'Today';
-        if (diffDays === 1) return 'Yesterday';
-        if (diffDays < 7) return `${diffDays} days ago`;
-        if (diffDays < 30) return `${Math.floor(diffDays / 7)} weeks ago`;
-        
-        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      };
-
-      if (!isAuthenticated) {
-        // Show loading spinner while auto-authenticating
-        if (loading) {
-          return (
-            <div style={{
-              minHeight: '100vh',
-              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontFamily: '"Crimson Pro", Georgia, serif',
-              padding: '2rem',
-            }}>
-              <div style={{
-                background: 'white',
-                padding: '3rem',
-                borderRadius: '2px',
-                maxWidth: '480px',
-                width: '100%',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-                textAlign: 'center',
-              }}>
-                <div style={{
-                  width: '48px',
-                  height: '48px',
-                  border: '4px solid #f1f5f9',
-                  borderTop: '4px solid #0f172a',
-                  borderRadius: '50%',
-                  margin: '0 auto 1.5rem',
-                  animation: 'spin 1s linear infinite',
-                }}></div>
-                <h2 style={{
-                  fontSize: '1.5rem',
-                  fontWeight: '600',
-                  color: '#0f172a',
-                  marginBottom: '0.5rem',
-                }}>
-                  Connecting...
-                </h2>
-                <p style={{
-                  color: '#64748b',
-                  fontSize: '0.938rem',
-                  fontFamily: '"IBM Plex Sans", sans-serif',
-                }}>
-                  Authenticating with GitHub
-                </p>
-              </div>
-            </div>
-          );
-        }
-        
-        return (
-          <div style={{
-            minHeight: '100vh',
-            background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontFamily: '"Crimson Pro", Georgia, serif',
-            padding: '2rem',
-          }}>
-            <div style={{
-              background: 'white',
-              padding: '3rem',
-              borderRadius: '2px',
-              maxWidth: '480px',
-              width: '100%',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
-            }}>
-              <div style={{ marginBottom: '2rem' }}>
-                <h1 style={{
-                  fontSize: '2.5rem',
-                  fontWeight: '600',
-                  marginBottom: '0.5rem',
-                  color: '#0f172a',
-                  letterSpacing: '-0.02em',
-                }}>
-                  Commit Cherry-Picker
-                </h1>
-                <p style={{
-                  color: '#64748b',
-                  fontSize: '1rem',
-                  lineHeight: '1.6',
-                  fontFamily: '"IBM Plex Sans", sans-serif',
-                }}>
-                  Visually select and promote commits from <code style={{
-                    background: '#f1f5f9',
-                    padding: '2px 6px',
-                    borderRadius: '3px',
-                    fontSize: '0.9em',
-                  }}>develop</code> to <code style={{
-                    background: '#f1f5f9',
-                    padding: '2px 6px',
-                    borderRadius: '3px',
-                    fontSize: '0.9em',
-                  }}>main</code>
-                </p>
-              </div>
-              
-              <div style={{ marginBottom: '1.5rem' }}>
-                <label style={{
-                  display: 'block',
-                  marginBottom: '0.5rem',
-                  color: '#334155',
-                  fontWeight: '500',
-                  fontSize: '0.875rem',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.05em',
-                  fontFamily: '"IBM Plex Sans", sans-serif',
-                }}>
-                  GitHub Personal Access Token
-                </label>
-                <input
-                  type="password"
-                  value={githubToken}
-                  onChange={(e) => handleTokenChange(e.target.value)}
-                  placeholder="ghp_xxxxxxxxxxxx"
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '2px solid #e2e8f0',
-                    borderRadius: '2px',
-                    fontSize: '1rem',
-                    fontFamily: '"IBM Plex Mono", monospace',
-                    transition: 'border-color 0.2s',
-                    outline: 'none',
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#3b82f6'}
-                  onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
-                />
-                <p style={{
-                  marginTop: '0.5rem',
-                  fontSize: '0.813rem',
-                  color: '#64748b',
-                  fontFamily: '"IBM Plex Sans", sans-serif',
-                  lineHeight: '1.5',
-                }}>
-                  Requires <strong>repo</strong> scope for Fulgerr/docs-pilot
-                  <br />
-                  <a 
-                    href="https://github.com/settings/tokens/new?scopes=repo&description=Commit%20Cherry-Picker" 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    style={{ color: '#3b82f6', textDecoration: 'none' }}
-                  >
-                    Create token here →
-                  </a>
-                </p>
-              </div>
-              
-              {error && (
-                <div style={{
-                  padding: '0.875rem',
-                  background: '#fef2f2',
-                  border: '1px solid #fecaca',
-                  borderRadius: '2px',
-                  marginBottom: '1.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                }}>
-                  <AlertCircle size={18} color="#dc2626" />
-                  <span style={{ color: '#991b1b', fontSize: '0.875rem', fontFamily: '"IBM Plex Sans", sans-serif' }}>
-                    {error}
-                  </span>
-                </div>
-              )}
-              
-              <button
-                onClick={fetchCommits}
-                disabled={!githubToken || loading}
-                style={{
-                  width: '100%',
-                  padding: '0.875rem',
-                  background: githubToken && !loading ? '#0f172a' : '#cbd5e1',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '2px',
-                  fontSize: '1rem',
-                  fontWeight: '500',
-                  cursor: githubToken && !loading ? 'pointer' : 'not-allowed',
-                  transition: 'all 0.2s',
-                  fontFamily: '"IBM Plex Sans", sans-serif',
-                  letterSpacing: '0.02em',
-                }}
-                onMouseEnter={(e) => {
-                  if (githubToken && !loading) e.target.style.background = '#1e293b';
-                }}
-                onMouseLeave={(e) => {
-                  if (githubToken && !loading) e.target.style.background = '#0f172a';
-                }}
-              >
-                {loading ? 'Connecting...' : 'Connect to Repository'}
-              </button>
-            </div>
-          </div>
-        );
-      }
-
-      return (
-        <div style={{
-          minHeight: '100vh',
-          background: '#fafafa',
-          fontFamily: '"IBM Plex Sans", sans-serif',
-        }}>
-          <div style={{
-            background: 'white',
-            borderBottom: '1px solid #e5e7eb',
-            position: 'sticky',
-            top: 0,
-            zIndex: 100,
-          }}>
-            <div style={{
-              maxWidth: '1400px',
-              margin: '0 auto',
-              padding: '1.5rem 2rem',
-            }}>
-              <div style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                marginBottom: '1rem',
-              }}>
-                <div>
-                  <h1 style={{
-                    fontSize: '1.75rem',
-                    fontWeight: '600',
-                    color: '#0f172a',
-                    marginBottom: '0.25rem',
-                    fontFamily: '"Crimson Pro", Georgia, serif',
-                    letterSpacing: '-0.02em',
-                  }}>
-                    Cherry-Pick Commits
-                  </h1>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    color: '#64748b',
-                    fontSize: '0.875rem',
-                  }}>
-                    <GitBranch size={14} />
-                    <span style={{ fontFamily: '"IBM Plex Mono", monospace' }}>
-                      {SOURCE_BRANCH}
-                    </span>
-                    <ChevronRight size={14} />
-                    <span style={{ fontFamily: '"IBM Plex Mono", monospace' }}>
-                      {TARGET_BRANCH}
-                    </span>
-                  </div>
-                </div>
-                
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '1rem',
-                }}>
-                  <div style={{
-                    padding: '0.5rem 1rem',
-                    background: '#f1f5f9',
-                    borderRadius: '2px',
-                    fontSize: '0.875rem',
-                    fontWeight: '500',
-                  }}>
-                    <span style={{ color: '#64748b' }}>Selected:</span>{' '}
-                    <span style={{ color: '#0f172a' }}>{selectedCommits.size}</span>
-                  </div>
-                  
-                  <button
-                    onClick={clearToken}
-                    style={{
-                      padding: '0.75rem 1rem',
-                      background: 'transparent',
-                      color: '#64748b',
-                      border: '1px solid #e5e7eb',
-                      borderRadius: '2px',
-                      fontSize: '0.875rem',
-                      fontWeight: '500',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.background = '#f8fafc';
-                      e.target.style.borderColor = '#cbd5e1';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.background = 'transparent';
-                      e.target.style.borderColor = '#e5e7eb';
-                    }}
-                  >
-                    Sign Out
-                  </button>
-                  
-                  <button
-                    onClick={createCherryPickPR}
-                    disabled={selectedCommits.size === 0 || prCreating}
-                    style={{
-                      padding: '0.75rem 1.5rem',
-                      background: selectedCommits.size > 0 && !prCreating ? '#0f172a' : '#cbd5e1',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '2px',
-                      fontSize: '0.938rem',
-                      fontWeight: '500',
-                      cursor: selectedCommits.size > 0 && !prCreating ? 'pointer' : 'not-allowed',
-                      transition: 'all 0.2s',
-                      letterSpacing: '0.01em',
-                    }}
-                    onMouseEnter={(e) => {
-                      if (selectedCommits.size > 0 && !prCreating) e.target.style.background = '#1e293b';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (selectedCommits.size > 0 && !prCreating) e.target.style.background = '#0f172a';
-                    }}
-                  >
-                    {prCreating ? 'Creating PR...' : 'Create Pull Request'}
-                  </button>
-                </div>
-              </div>
-              
-              <div style={{ position: 'relative' }}>
-                <Search
-                  size={18}
-                  style={{
-                    position: 'absolute',
-                    left: '0.875rem',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    color: '#94a3b8',
-                  }}
-                />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search commits by message, author, or SHA..."
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem 0.875rem 0.75rem 3rem',
-                    border: '2px solid #e5e7eb',
-                    borderRadius: '2px',
-                    fontSize: '0.938rem',
-                    outline: 'none',
-                    transition: 'border-color 0.2s',
-                  }}
-                  onFocus={(e) => e.target.style.borderColor = '#cbd5e1'}
-                  onBlur={(e) => e.target.style.borderColor = '#e5e7eb'}
-                />
-              </div>
-              
-              <div style={{ marginTop: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <label style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  color: '#64748b',
-                  userSelect: 'none',
-                }}>
-                  <input
-                    type="checkbox"
-                    checked={hideMergeCommits}
-                    onChange={(e) => setHideMergeCommits(e.target.checked)}
-                    style={{
-                      width: '16px',
-                      height: '16px',
-                      cursor: 'pointer',
-                    }}
-                  />
-                  Hide merge commits
-                </label>
-                <span style={{ color: '#94a3b8', fontSize: '0.813rem' }}>
-                  ({commits.filter(c => c.parents.length > 1 || c.commit.message.toLowerCase().startsWith('merge')).length} merge commits in total)
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {prUrl && (
-            <div style={{
-              maxWidth: '1400px',
-              margin: '2rem auto',
-              padding: '0 2rem',
-            }}>
-              <div style={{
-                padding: '1rem 1.5rem',
-                background: '#ecfdf5',
-                border: '1px solid #6ee7b7',
-                borderRadius: '2px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                  <Check size={20} color="#059669" />
-                  <span style={{ color: '#065f46', fontWeight: '500' }}>
-                    Pull request created successfully!
-                  </span>
-                </div>
-                <a
-                  href={prUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    color: '#059669',
-                    textDecoration: 'none',
-                    fontWeight: '500',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                  }}
+            <div class="form-group">
+                <label for="tokenInput">GitHub Personal Access Token</label>
+                <input 
+                    type="password" 
+                    id="tokenInput" 
+                    placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                    autocomplete="off"
                 >
-                  View PR
-                  <ChevronRight size={16} />
-                </a>
-              </div>
             </div>
-          )}
 
-          {error && (
-            <div style={{
-              maxWidth: '1400px',
-              margin: '2rem auto',
-              padding: '0 2rem',
-            }}>
-              <div style={{
-                padding: '1rem 1.5rem',
-                background: '#fef2f2',
-                border: '1px solid #fecaca',
-                borderRadius: '2px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.75rem',
-              }}>
-                <AlertCircle size={20} color="#dc2626" />
-                <span style={{ color: '#991b1b' }}>{error}</span>
-              </div>
+            <button class="btn" id="loginBtn" onclick="handleLogin()">Connect</button>
+
+            <div class="help-text">
+                Need a token? <a href="https://github.com/settings/tokens/new?scopes=repo&description=Cherry-Pick-Tool" target="_blank">Create one here</a> with <strong>repo</strong> scope.
             </div>
-          )}
 
-          <div style={{
-            maxWidth: '1400px',
-            margin: '0 auto',
-            padding: '2rem',
-          }}>
-            <div style={{
-              display: 'grid',
-              gap: '0.75rem',
-            }}>
-              {filteredCommits.map((commit, index) => {
-                const isSelected = selectedCommits.has(commit.sha);
-                const messageLines = commit.commit.message.split('\n');
-                const title = messageLines[0];
-                const description = messageLines.slice(1).join('\n').trim();
-                
-                return (
-                  <div
-                    key={commit.sha}
-                    onClick={() => toggleCommit(commit.sha)}
-                    style={{
-                      background: 'white',
-                      border: `2px solid ${isSelected ? '#0f172a' : '#e5e7eb'}`,
-                      borderRadius: '2px',
-                      padding: '1.25rem',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                      position: 'relative',
-                      animation: `slideIn 0.3s ease-out ${index * 0.03}s both`,
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) e.currentTarget.style.borderColor = '#cbd5e1';
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) e.currentTarget.style.borderColor = '#e5e7eb';
-                    }}
-                  >
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '1rem',
-                    }}>
-                      <div style={{
-                        width: '22px',
-                        height: '22px',
-                        border: `2px solid ${isSelected ? '#0f172a' : '#cbd5e1'}`,
-                        borderRadius: '2px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: isSelected ? '#0f172a' : 'white',
-                        transition: 'all 0.15s',
-                        flexShrink: 0,
-                        marginTop: '2px',
-                      }}>
-                        {isSelected && <Check size={14} color="white" strokeWidth={3} />}
-                      </div>
-                      
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{
-                          fontSize: '1rem',
-                          color: '#0f172a',
-                          marginBottom: description ? '0.5rem' : '0.75rem',
-                          fontWeight: '500',
-                          lineHeight: '1.5',
-                        }}>
-                          {title}
-                        </div>
-                        
-                        {description && (
-                          <div style={{
-                            fontSize: '0.875rem',
-                            color: '#64748b',
-                            lineHeight: '1.6',
-                            marginBottom: '0.75rem',
-                            whiteSpace: 'pre-wrap',
-                            fontFamily: '"IBM Plex Sans", sans-serif',
-                          }}>
-                            {description}
-                          </div>
-                        )}
-                        
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '1rem',
-                          fontSize: '0.813rem',
-                          color: '#64748b',
-                          flexWrap: 'wrap',
-                        }}>
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '0.375rem',
-                          }}>
-                            <GitCommit size={13} />
-                            <code style={{
-                              fontFamily: '"IBM Plex Mono", monospace',
-                              fontSize: '0.813rem',
-                            }}>
-                              {commit.sha.substring(0, 7)}
-                            </code>
-                          </div>
-                          
-                          <span>{commit.commit.author.name}</span>
-                          
-                          <span>{formatDate(commit.commit.author.date)}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            
-            {filteredCommits.length === 0 && searchTerm && (
-              <div style={{
-                textAlign: 'center',
-                padding: '4rem 2rem',
-                color: '#94a3b8',
-              }}>
-                <Search size={48} style={{ marginBottom: '1rem', opacity: 0.5 }} />
-                <p style={{ fontSize: '1.125rem' }}>No commits found matching "{searchTerm}"</p>
-              </div>
-            )}
-          </div>
-
-          <style>{`
-            @import url('https://fonts.googleapis.com/css2?family=Crimson+Pro:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
-            
-            @keyframes slideIn {
-              from {
-                opacity: 0;
-                transform: translateY(10px);
-              }
-              to {
-                opacity: 1;
-                transform: translateY(0);
-              }
-            }
-            
-            @keyframes spin {
-              from {
-                transform: rotate(0deg);
-              }
-              to {
-                transform: rotate(360deg);
-              }
-            }
-            
-            * {
-              box-sizing: border-box;
-              margin: 0;
-              padding: 0;
-            }
-          `}</style>
+            <div id="loginError" style="margin-top: 16px; color: #f85149; display: none;"></div>
         </div>
-      );
-    };
+    </div>
 
-    ReactDOM.render(<CommitCherryPicker />, document.getElementById('root'));
-  </script>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" class="loading-screen" style="display: none;">
+        <div class="spinner"></div>
+        <div class="loading-text">Connecting...</div>
+    </div>
+
+    <!-- Main Screen -->
+    <div id="mainScreen" class="main-screen">
+        <div class="container">
+            <!-- Header -->
+            <div class="header">
+                <div class="header-content">
+                    <div class="branch-info">
+                        <span class="branch-badge">develop</span>
+                        <span>→</span>
+                        <span class="branch-badge">main</span>
+                        <span class="selection-info">
+                            <strong id="selectedCount">0</strong> selected
+                        </span>
+                    </div>
+                    <div class="header-actions">
+                        <button class="theme-switcher" onclick="toggleTheme()" title="Toggle theme">
+                            <span id="themeIcon">🌙</span>
+                        </button>
+                        <button class="btn btn-small btn-secondary" onclick="handleSignOut()">Sign Out</button>
+                        <button class="btn btn-small btn-primary" id="createPrBtn" onclick="handleCreatePR()" disabled>Create PR</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Banner -->
+            <div id="successBanner" class="banner banner-success">
+                <div class="banner-content" id="successBannerContent"></div>
+                <button class="banner-close" onclick="closeBanner('successBanner')">×</button>
+            </div>
+
+            <div id="errorBanner" class="banner banner-error">
+                <div class="banner-content" id="errorBannerContent"></div>
+                <button class="banner-close" onclick="closeBanner('errorBanner')">×</button>
+            </div>
+
+            <!-- Controls -->
+            <div class="controls">
+                <input 
+                    type="text" 
+                    class="search-box" 
+                    id="searchBox" 
+                    placeholder="Search commits by message, author, or SHA..."
+                    oninput="filterCommits()"
+                >
+                <label class="filter-toggle">
+                    <input type="checkbox" id="hideMergeCommits" checked onchange="filterCommits()">
+                    <span>Hide merge commits</span>
+                    <span class="merge-count" id="mergeCount"></span>
+                </label>
+            </div>
+
+            <!-- Commits -->
+            <div id="commitsContainer" class="commits-container"></div>
+        </div>
+    </div>
+
+    <script>
+        const REPO_OWNER = 'Fulgerr';
+        const REPO_NAME = 'docs-pilot';
+        const SOURCE_BRANCH = 'develop';
+        const TARGET_BRANCH = 'main';
+        const TOKEN_KEY = 'github_token';
+
+        let token = null;
+        let allCommits = [];
+        let selectedCommits = new Set();
+
+        // Initialize
+        window.addEventListener('DOMContentLoaded', init);
+
+        async function init() {
+            const storedToken = localStorage.getItem(TOKEN_KEY);
+            if (storedToken) {
+                showLoading();
+                await authenticate(storedToken);
+            }
+            
+            // Load theme preference
+            const theme = localStorage.getItem('theme') || 'dark';
+            if (theme === 'light') {
+                document.body.classList.add('light-theme');
+                document.getElementById('themeIcon').textContent = '☀️';
+            }
+        }
+
+        // Theme Toggle
+        function toggleTheme() {
+            const body = document.body;
+            const themeIcon = document.getElementById('themeIcon');
+            
+            if (body.classList.contains('light-theme')) {
+                body.classList.remove('light-theme');
+                themeIcon.textContent = '🌙';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                body.classList.add('light-theme');
+                themeIcon.textContent = '☀️';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        // Authentication
+        async function handleLogin() {
+            const tokenInput = document.getElementById('tokenInput');
+            const loginBtn = document.getElementById('loginBtn');
+            const loginError = document.getElementById('loginError');
+            
+            const inputToken = tokenInput.value.trim();
+            if (!inputToken) {
+                showError('Please enter a token', 'loginError');
+                return;
+            }
+
+            loginBtn.disabled = true;
+            loginBtn.textContent = 'Connecting...';
+            loginError.style.display = 'none';
+
+            showLoading();
+            await authenticate(inputToken);
+        }
+
+        async function authenticate(inputToken) {
+            try {
+                // Validate token by making a simple API call
+                const response = await fetch(`https://api.github.com/repos/${REPO_OWNER}/${REPO_NAME}`, {
+                    headers: {
+                        'Authorization': `token ${inputToken}`,
+                        'Accept': 'application/vnd.github.v3+json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(response.status === 401 ? 'Invalid token' : 'Repository access denied');
+                }
+
+                token = inputToken;
+                localStorage.setItem(TOKEN_KEY, token);
+                
+                await loadCommits();
+                showMainScreen();
+            } catch (error) {
+                console.error('Authentication error:', error);
+                showError(error.message, 'loginError');
+                hideLoading();
+                resetLoginButton();
+            }
+        }
+
+        function handleSignOut() {
+            localStorage.removeItem(TOKEN_KEY);
+            token = null;
+            selectedCommits.clear();
+            allCommits = [];
+            showLoginScreen();
+        }
+
+        // UI State Management
+        function showLoginScreen() {
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('mainScreen').style.display = 'none';
+        }
+
+        function showLoading() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('loadingScreen').style.display = 'flex';
+            document.getElementById('mainScreen').style.display = 'none';
+        }
+
+        function showMainScreen() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('mainScreen').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('loginScreen').style.display = 'flex';
+        }
+
+        function resetLoginButton() {
+            const loginBtn = document.getElementById('loginBtn');
+            loginBtn.disabled = false;
+            loginBtn.textContent = 'Connect';
+        }
+
+        function showError(message, elementId = 'errorBannerContent') {
+            if (elementId === 'loginError') {
+                const errorEl = document.getElementById(elementId);
+                errorEl.textContent = message;
+                errorEl.style.display = 'block';
+            } else {
+                document.getElementById(elementId).textContent = message;
+                document.getElementById('errorBanner').classList.add('show');
+            }
+        }
+
+        function showSuccess(html) {
+            document.getElementById('successBannerContent').innerHTML = html;
+            document.getElementById('successBanner').classList.add('show');
+        }
+
+        function closeBanner(id) {
+            document.getElementById(id).classList.remove('show');
+        }
+
+        // GitHub API Calls
+        async function apiCall(endpoint, options = {}) {
+            const response = await fetch(`https://api.github.com${endpoint}`, {
+                ...options,
+                headers: {
+                    'Authorization': `token ${token}`,
+                    'Accept': 'application/vnd.github.v3+json',
+                    'Content-Type': 'application/json',
+                    ...options.headers
+                }
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.message || `API call failed: ${response.status}`);
+            }
+
+            return response.json();
+        }
+
+        // Load Commits
+        async function loadCommits() {
+            try {
+                closeBanner('errorBanner');
+
+                // Get commits from both branches
+                const [developCommits, mainCommits] = await Promise.all([
+                    getCommits(SOURCE_BRANCH),
+                    getCommits(TARGET_BRANCH)
+                ]);
+
+                // Create a set of tree SHAs from main to detect cherry-picked commits
+                const mainTreeShas = new Set(mainCommits.map(c => c.commit.tree.sha));
+
+                // Filter out commits that exist on main (by tree SHA comparison)
+                allCommits = developCommits.filter(commit => {
+                    return !mainTreeShas.has(commit.commit.tree.sha);
+                });
+
+                renderCommits();
+            } catch (error) {
+                console.error('Error loading commits:', error);
+                showError(`Failed to load commits: ${error.message}`);
+            }
+        }
+
+        async function getCommits(branch, page = 1, allResults = []) {
+            const perPage = 100;
+            const commits = await apiCall(`/repos/${REPO_OWNER}/${REPO_NAME}/commits?sha=${branch}&per_page=${perPage}&page=${page}`);
+            
+            allResults.push(...commits);
+
+            // If we got a full page, there might be more
+            if (commits.length === perPage) {
+                return getCommits(branch, page + 1, allResults);
+            }
+
+            return allResults;
+        }
+
+        // Render Commits
+        function renderCommits() {
+            const container = document.getElementById('commitsContainer');
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const hideMerge = document.getElementById('hideMergeCommits').checked;
+
+            let filteredCommits = allCommits;
+
+            // Filter by search
+            if (searchTerm) {
+                filteredCommits = filteredCommits.filter(commit => {
+                    const message = commit.commit.message.toLowerCase();
+                    const author = commit.commit.author.name.toLowerCase();
+                    const sha = commit.sha.toLowerCase();
+                    return message.includes(searchTerm) || author.includes(searchTerm) || sha.includes(searchTerm);
+                });
+            }
+
+            // Count merge commits
+            const mergeCommits = filteredCommits.filter(c => c.parents && c.parents.length > 1);
+            document.getElementById('mergeCount').textContent = mergeCommits.length > 0 ? `(${mergeCommits.length} merge commits)` : '';
+
+            // Filter merge commits
+            if (hideMerge) {
+                filteredCommits = filteredCommits.filter(c => !c.parents || c.parents.length <= 1);
+            }
+
+            if (filteredCommits.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <h2>No commits found</h2>
+                        <p>All commits from develop are already on main, or your search didn't match any commits.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = filteredCommits.map((commit, index) => {
+                const messageParts = commit.commit.message.split('\n');
+                const title = messageParts[0];
+                const description = messageParts.slice(1).join('\n').trim();
+                const shortSha = commit.sha.substring(0, 7);
+                const isSelected = selectedCommits.has(commit.sha);
+                const date = new Date(commit.commit.author.date);
+                const relativeDate = getRelativeTime(date);
+
+                return `
+                    <div class="commit-card ${isSelected ? 'selected' : ''}" 
+                         data-sha="${commit.sha}"
+                         onclick="toggleCommit('${commit.sha}')"
+                         style="animation-delay: ${index * 0.05}s">
+                        <div class="commit-card-header">
+                            <input type="checkbox" 
+                                   class="commit-checkbox" 
+                                   ${isSelected ? 'checked' : ''}
+                                   onclick="event.stopPropagation(); toggleCommit('${commit.sha}')">
+                            <div class="commit-info">
+                                <div class="commit-title">${escapeHtml(title)} #${shortSha}</div>
+                                ${description ? `<div class="commit-description">${escapeHtml(description)}</div>` : ''}
+                                <div class="commit-meta">
+                                    <span>${escapeHtml(commit.commit.author.name)}</span>
+                                    <span>${relativeDate}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterCommits() {
+            renderCommits();
+        }
+
+        // Commit Selection
+        function toggleCommit(sha) {
+            if (selectedCommits.has(sha)) {
+                selectedCommits.delete(sha);
+            } else {
+                selectedCommits.add(sha);
+            }
+            updateSelectionUI();
+        }
+
+        function updateSelectionUI() {
+            document.getElementById('selectedCount').textContent = selectedCommits.size;
+            document.getElementById('createPrBtn').disabled = selectedCommits.size === 0;
+            
+            // Update commit cards
+            document.querySelectorAll('.commit-card').forEach(card => {
+                const sha = card.dataset.sha;
+                const checkbox = card.querySelector('.commit-checkbox');
+                if (selectedCommits.has(sha)) {
+                    card.classList.add('selected');
+                    checkbox.checked = true;
+                } else {
+                    card.classList.remove('selected');
+                    checkbox.checked = false;
+                }
+            });
+        }
+
+        // Create PR
+        async function handleCreatePR() {
+            if (selectedCommits.size === 0) return;
+
+            const createPrBtn = document.getElementById('createPrBtn');
+            createPrBtn.disabled = true;
+            createPrBtn.textContent = 'Creating PR...';
+            closeBanner('errorBanner');
+            closeBanner('successBanner');
+
+            try {
+                // Get selected commit objects sorted by date (oldest first)
+                const selectedCommitObjects = allCommits
+                    .filter(c => selectedCommits.has(c.sha))
+                    .sort((a, b) => new Date(a.commit.author.date) - new Date(b.commit.author.date));
+
+                // Create branch name
+                const branchName = createBranchName(selectedCommitObjects);
+
+                // Get current main HEAD
+                const mainRef = await apiCall(`/repos/${REPO_OWNER}/${REPO_NAME}/git/ref/heads/${TARGET_BRANCH}`);
+                const mainSha = mainRef.object.sha;
+
+                // Create new branch
+                await apiCall(`/repos/${REPO_OWNER}/${REPO_NAME}/git/refs`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        ref: `refs/heads/${branchName}`,
+                        sha: mainSha
+                    })
+                });
+
+                // Cherry-pick commits
+                let currentSha = mainSha;
+                for (const commit of selectedCommitObjects) {
+                    currentSha = await cherryPickCommit(commit.sha, currentSha, branchName);
+                }
+
+                // Create PR
+                const pr = await createPullRequest(branchName, selectedCommitObjects);
+
+                showSuccess(`Pull request created successfully! <a href="${pr.html_url}" target="_blank">View PR #${pr.number}</a>`);
+                
+                // Clear selection and reload commits
+                selectedCommits.clear();
+                updateSelectionUI();
+                await loadCommits();
+
+            } catch (error) {
+                console.error('Error creating PR:', error);
+                showError(`Failed to create PR: ${error.message}`);
+            } finally {
+                createPrBtn.disabled = false;
+                createPrBtn.textContent = 'Create PR';
+            }
+        }
+
+        function createBranchName(commits) {
+            const firstCommitTitle = commits[0].commit.message.split('\n')[0];
+            
+            // Sanitize: lowercase, keep alphanumeric and slashes, replace others with dashes
+            let sanitized = firstCommitTitle
+                .toLowerCase()
+                .replace(/[^a-z0-9\/]+/g, '-')
+                .replace(/^-+|-+$/g, '');
+
+            if (commits.length === 1) {
+                return `release/${sanitized}`;
+            } else {
+                return `release/${sanitized}-plus-${commits.length - 1}-more`;
+            }
+        }
+
+        async function cherryPickCommit(commitSha, parentSha, branchName) {
+            // Get the commit details
+            const commit = await apiCall(`/repos/${REPO_OWNER}/${REPO_NAME}/git/commits/${commitSha}`);
+            
+            // Get parent tree
+            const parentCommit = await apiCall(`/repos/${REPO_OWNER}/${REPO_NAME}/git/commits/${parentSha}`);
+            
+            // Create merge commit (this will handle conflicts by creating the commit anyway)
+            try {
+                const newCommit = await apiCall(`/repos/${REPO_OWNER}/${REPO_NAME}/git/commits`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message: commit.message,
+                        tree: commit.tree.sha,
+                        parents: [parentSha]
+                    })
+                });
+
+                // Update branch reference
+                await apiCall(`/repos/${REPO_OWNER}/${REPO_NAME}/git/refs/heads/${branchName}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        sha: newCommit.sha
+                    })
+                });
+
+                return newCommit.sha;
+            } catch (error) {
+                // If there's a conflict, the tree SHA won't match - but PR will still be created
+                // and GitHub will show the conflict
+                throw error;
+            }
+        }
+
+        async function createPullRequest(branchName, commits) {
+            let title, body;
+
+            if (commits.length === 1) {
+                const commit = commits[0];
+                const messageParts = commit.commit.message.split('\n');
+                title = messageParts[0];
+                const description = messageParts.slice(1).join('\n').trim();
+
+                body = `Cherry-picking commit [${commit.sha.substring(0, 7)}](https://github.com/${REPO_OWNER}/${REPO_NAME}/commit/${commit.sha})\n\n`;
+                
+                if (description) {
+                    body += `${description}\n\n`;
+                }
+
+                body += `---\n*Created with Cherry-Pick Tool*`;
+            } else {
+                const firstCommit = commits[0];
+                title = `${firstCommit.commit.message.split('\n')[0]} (+${commits.length - 1} more commits)`;
+
+                body = `Cherry-picking ${commits.length} commits:\n\n`;
+
+                commits.forEach(commit => {
+                    const messageParts = commit.commit.message.split('\n');
+                    const commitTitle = messageParts[0];
+                    const description = messageParts.slice(1).join('\n').trim();
+
+                    body += `### [${commit.sha.substring(0, 7)}](https://github.com/${REPO_OWNER}/${REPO_NAME}/commit/${commit.sha}) ${commitTitle}\n\n`;
+                    
+                    if (description) {
+                        body += `${description}\n\n`;
+                    }
+                });
+
+                body += `---\n*Created with Cherry-Pick Tool*`;
+            }
+
+            body += `\n\n> **Note:** If there are conflicts, please resolve them in GitHub's web interface before merging.`;
+
+            return await apiCall(`/repos/${REPO_OWNER}/${REPO_NAME}/pulls`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    title: title,
+                    body: body,
+                    head: branchName,
+                    base: TARGET_BRANCH
+                })
+            });
+        }
+
+        // Utility Functions
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function getRelativeTime(date) {
+            const now = new Date();
+            const diffMs = now - date;
+            const diffSecs = Math.floor(diffMs / 1000);
+            const diffMins = Math.floor(diffSecs / 60);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+
+            if (diffSecs < 60) return 'just now';
+            if (diffMins < 60) return `${diffMins} minute${diffMins !== 1 ? 's' : ''} ago`;
+            if (diffHours < 24) return `${diffHours} hour${diffHours !== 1 ? 's' : ''} ago`;
+            if (diffDays < 30) return `${diffDays} day${diffDays !== 1 ? 's' : ''} ago`;
+            
+            return date.toLocaleDateString();
+        }
+    </script>
 </body>
 </html>
