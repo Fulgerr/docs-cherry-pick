@@ -635,7 +635,7 @@
             background: var(--accent-light);
             border: 1px solid var(--accent-border);
             border-radius: 4px;
-            font-size: 12px;
+            font-size: 13px;
             color: var(--accent-primary);
         }
 
@@ -643,6 +643,10 @@
             color: var(--accent-primary);
             font-weight: 600;
             text-decoration: none;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
 
         .commit-pr-link a:hover {
@@ -1299,7 +1303,12 @@
                         </div>
                         ${relatedPR ? `
                             <div class="commit-pr-link">
-                                ℹ️ This commit is part of open PR <a href="${relatedPR.html_url}" target="_blank">#${relatedPR.number}</a>
+                                <a href="${relatedPR.html_url}" target="_blank">
+                                    <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                                        <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 5.372v5.256a2.251 2.251 0 111.5 0V5.372A2.25 2.25 0 105 5.372zM11.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372a2.25 2.25 0 01-1.5-2.122z"></path>
+                                    </svg>
+                                    Already in open PR #${relatedPR.number} - Click to view
+                                </a>
                             </div>
                         ` : ''}
                     </div>
