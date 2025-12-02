@@ -36,6 +36,9 @@
             --warning-text: #7d4e00;
             --shadow: rgba(0, 0, 0, 0.05);
             --shadow-lg: rgba(0, 0, 0, 0.2);
+            --disabled-bg: #94d3a2;
+            --disabled-border: #94d3a2;
+            --disabled-text: #ffffff;
         }
 
         @media (prefers-color-scheme: dark) {
@@ -51,8 +54,8 @@
                 --border-secondary: #21262d;
                 --accent-primary: #2f81f7;
                 --accent-hover: #1f6feb;
-                --accent-light: #1c2d41;
-                --accent-border: #1f6feb;
+                --accent-light: #0d2c4d;
+                --accent-border: #1f4d7a;
                 --success-bg: #0f2d1a;
                 --success-border: #2ea043;
                 --success-text: #3fb950;
@@ -64,6 +67,9 @@
                 --warning-text: #d4a72c;
                 --shadow: rgba(0, 0, 0, 0.3);
                 --shadow-lg: rgba(0, 0, 0, 0.6);
+                --disabled-bg: #1f6f3b;
+                --disabled-border: #1f6f3b;
+                --disabled-text: #8b949e;
             }
         }
 
@@ -363,8 +369,9 @@
         }
 
         .btn-small.btn-primary:disabled {
-            background: #94d3a2;
-            border-color: #94d3a2;
+            background: var(--disabled-bg);
+            border-color: var(--disabled-border);
+            color: var(--disabled-text);
             cursor: not-allowed;
         }
 
@@ -447,6 +454,9 @@
             --warning-text: #7d4e00;
             --shadow: rgba(0, 0, 0, 0.05);
             --shadow-lg: rgba(0, 0, 0, 0.2);
+            --disabled-bg: #94d3a2;
+            --disabled-border: #94d3a2;
+            --disabled-text: #ffffff;
         }
 
         [data-theme="dark"] {
@@ -460,8 +470,8 @@
             --border-secondary: #21262d;
             --accent-primary: #2f81f7;
             --accent-hover: #1f6feb;
-            --accent-light: #1c2d41;
-            --accent-border: #1f6feb;
+            --accent-light: #0d2c4d;
+            --accent-border: #1f4d7a;
             --success-bg: #0f2d1a;
             --success-border: #2ea043;
             --success-text: #3fb950;
@@ -473,6 +483,9 @@
             --warning-text: #d4a72c;
             --shadow: rgba(0, 0, 0, 0.3);
             --shadow-lg: rgba(0, 0, 0, 0.6);
+            --disabled-bg: #1f6f3b;
+            --disabled-border: #1f6f3b;
+            --disabled-text: #8b949e;
         }
 
         /* Controls */
