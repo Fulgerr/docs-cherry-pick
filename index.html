@@ -1320,7 +1320,7 @@
                                     <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
                                         <path d="M1.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372A2.25 2.25 0 011.5 3.25zM5 5.372v5.256a2.251 2.251 0 111.5 0V5.372A2.25 2.25 0 105 5.372zM11.5 3.25a2.25 2.25 0 113 2.122v5.256a2.251 2.251 0 11-1.5 0V5.372a2.25 2.25 0 01-1.5-2.122z"></path>
                                     </svg>
-                                    Already in open PR #${relatedPR.number} - Click to view
+                                    Already in open PR to main #${relatedPR.number} - Click to view
                                 </a>
                             </div>
                         ` : ''}
@@ -1353,6 +1353,14 @@
         }
 
         function checkSelectionWarnings() {
+            // Clear previous warnings first
+            const existingWarnings = document.querySelectorAll('.alert-warning');
+            existingWarnings.forEach(warning => {
+                if (warning.textContent.includes('Multiple feature commits')) {
+                    warning.remove();
+                }
+            });
+
             if (state.selectedCommits.size === 0) return;
 
             const selectedCommitObjects = Array.from(state.selectedCommits)
