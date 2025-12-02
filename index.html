@@ -358,25 +358,6 @@
             box-shadow: 0 0 0 3px rgba(9, 105, 218, 0.1);
         }
 
-        .filter-toggle {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            color: #57606a;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .filter-toggle input[type="checkbox"] {
-            cursor: pointer;
-        }
-
-        .merge-count {
-            color: #0969da;
-            font-weight: 600;
-        }
-
         /* Commit List */
         .commit-list {
             display: flex;
@@ -451,17 +432,30 @@
             word-wrap: break-word;
         }
 
+        .commit-paths {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            margin-left: 8px;
+        }
+
         .commit-path {
             display: inline-flex;
             align-items: center;
             gap: 4px;
-            padding: 3px 8px;
+            padding: 2px 8px;
             background: #eff1f3;
             border-radius: 4px;
             font-size: 12px;
             color: #57606a;
             font-family: 'SF Mono', Monaco, Consolas, monospace;
-            margin-bottom: 8px;
+        }
+
+        .commit-path svg {
+            width: 12px;
+            height: 12px;
+            flex-shrink: 0;
         }
 
         .commit-meta {
@@ -651,11 +645,6 @@
                     class="search-box" 
                     placeholder="Search commits by message, author, or SHA..."
                 >
-                
-                <label class="filter-toggle">
-                    <input type="checkbox" id="hideMergeCommits" checked>
-                    Hide merge commits (<span class="merge-count" id="mergeCount">0</span> hidden)
-                </label>
             </div>
 
             <!-- Commit List -->
@@ -677,7 +666,6 @@
             token: null,
             commits: [],
             selectedCommits: new Set(),
-            hideMergeCommits: true,
             searchQuery: '',
             openPRs: []
         };
@@ -822,14 +810,20 @@
                     github.getOpenPRs()
                 ]);
 
-                state.openPRs = openPRs;
+                // Filter to only PRs targeting main branch
+                state.openPRs = openPRs.filter(pr => pr.base.ref === CONFIG.targetBranch);
 
                 // Create a map of main commit tree SHAs for duplicate detection
                 const mainTreeShas = new Set(mainCommits.map(c => c.commit.tree.sha));
 
-                // Filter commits that are on develop but not on main
+                // Filter commits that are on develop but not on main, excluding merge commits
                 const uniqueCommits = [];
                 for (const commit of developCommits) {
+                    // Skip merge commits entirely
+                    if (commit.parents && commit.parents.length > 1) {
+                        continue;
+                    }
+
                     const commitTreeSha = commit.commit.tree.sha;
                     
                     // Skip if this exact content exists on main
@@ -840,7 +834,7 @@
                     // Get full commit details including files
                     const details = await github.getCommitDetails(commit.sha);
                     
-                    // Extract path from commit files
+                    // Extract unique root paths from commit files
                     const paths = new Set();
                     if (details.files && details.files.length > 0) {
                         details.files.forEach(file => {
@@ -853,8 +847,7 @@
 
                     uniqueCommits.push({
                         ...commit,
-                        isMerge: commit.parents.length > 1,
-                        path: paths.size > 0 ? Array.from(paths).join(', ') : null,
+                        paths: Array.from(paths),
                         files: details.files
                     });
                 }
@@ -876,11 +869,6 @@
         // Commit filtering
         function getFilteredCommits() {
             return state.commits.filter(commit => {
-                // Filter merge commits
-                if (state.hideMergeCommits && commit.isMerge) {
-                    return false;
-                }
-
                 // Filter by search query
                 if (state.searchQuery) {
                     const query = state.searchQuery.toLowerCase();
@@ -1067,10 +1055,27 @@
             const date = new Date(commit.commit.author.date);
             const relativeDate = getRelativeTime(date);
 
-            // Check if commit is in an open PR
+            // Check if commit is in an open PR to main
             const relatedPR = state.openPRs.find(pr => 
                 pr.head.ref.includes(sanitizeBranchName(title).substring(0, 30))
             );
+
+            // Build paths HTML
+            let pathsHTML = '';
+            if (commit.paths && commit.paths.length > 0) {
+                pathsHTML = `<span class="commit-paths">`;
+                commit.paths.forEach(path => {
+                    pathsHTML += `
+                        <span class="commit-path">
+                            <svg viewBox="0 0 16 16" fill="currentColor">
+                                <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"></path>
+                            </svg>
+                            ${escapeHtml(path)}
+                        </span>
+                    `;
+                });
+                pathsHTML += `</span>`;
+            }
 
             card.innerHTML = `
                 <div class="commit-header">
@@ -1080,16 +1085,11 @@
                         ${state.selectedCommits.has(commit.sha) ? 'checked' : ''}
                     >
                     <div class="commit-content">
-                        <div class="commit-title">${escapeHtml(title)}</div>
+                        <div class="commit-title">
+                            ${escapeHtml(title)}
+                            ${pathsHTML}
+                        </div>
                         ${description ? `<div class="commit-description">${escapeHtml(description)}</div>` : ''}
-                        ${commit.path ? `
-                            <div class="commit-path">
-                                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                                    <path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"></path>
-                                </svg>
-                                ${escapeHtml(commit.path)}
-                            </div>
-                        ` : ''}
                         <div class="commit-meta">
                             <div class="commit-meta-item">
                                 <span class="commit-sha">${commit.sha.substring(0, 7)}</span>
@@ -1162,9 +1162,7 @@
 
             // Update commit count
             const filtered = getFilteredCommits();
-            const mergeCount = state.commits.filter(c => c.isMerge).length;
             document.getElementById('commitCount').textContent = `${filtered.length} of ${state.commits.length} commits`;
-            document.getElementById('mergeCount').textContent = mergeCount;
 
             // Update create PR button
             const createBtn = document.getElementById('createPrBtn');
@@ -1221,12 +1219,6 @@
 
         document.getElementById('searchBox').addEventListener('input', (e) => {
             state.searchQuery = e.target.value.trim();
-            renderCommits();
-            updateUI();
-        });
-
-        document.getElementById('hideMergeCommits').addEventListener('change', (e) => {
-            state.hideMergeCommits = e.target.checked;
             renderCommits();
             updateUI();
         });
