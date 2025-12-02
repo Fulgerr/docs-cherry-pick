@@ -844,10 +844,15 @@
                                 paths.add(parts[0]);
                             } else {
                                 // File is in root directory
-                                paths.add('.');
+                                paths.add('root');
                             }
                         });
                     }
+
+                    // Debug: log commit and its paths
+                    console.log('Commit:', commit.sha.substring(0, 7), commit.commit.message.split('\n')[0]);
+                    console.log('Files:', details.files.map(f => f.filename));
+                    console.log('Detected paths:', Array.from(paths));
 
                     uniqueCommits.push({
                         ...commit,
