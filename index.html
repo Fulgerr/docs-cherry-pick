@@ -350,9 +350,8 @@
             const commitMsg = selectedCommitObjects[0].commit.message.split('\n')[0];
             const sanitized = commitMsg
               .toLowerCase()
-              .replace(/[^a-z0-9/]+/g, '-')  // Keep slashes
+              .replace(/[^a-z0-9]+/g, '-')
               .replace(/^-+|-+$/g, '')
-              .replace(/-+/g, '-')  // Replace multiple dashes with single dash
               .substring(0, 50);
             branchName = `release/${sanitized}`;
             prTitle = commitMsg;
@@ -360,9 +359,8 @@
             const firstCommit = selectedCommitObjects[0].commit.message.split('\n')[0];
             const sanitized = firstCommit
               .toLowerCase()
-              .replace(/[^a-z0-9/]+/g, '-')  // Keep slashes
+              .replace(/[^a-z0-9]+/g, '-')
               .replace(/^-+|-+$/g, '')
-              .replace(/-+/g, '-')  // Replace multiple dashes with single dash
               .substring(0, 40);
             branchName = `release/${sanitized}-plus-${selectedCommitObjects.length - 1}-more`;
             prTitle = `${firstCommit} (+${selectedCommitObjects.length - 1} more commits)`;
@@ -472,37 +470,21 @@
           
           console.log('Branch updated successfully');
           
-          // Create PR body with better formatting
-          let prBody;
+          const commitList = selectedCommitObjects
+            .map(c => `- ${c.sha.substring(0, 7)}: ${c.commit.message.split('\\n')[0]}`)
+            .join('\\n');
           
-          if (selectedCommitObjects.length === 1) {
-            const commit = selectedCommitObjects[0];
-            const messageLines = commit.commit.message.split('\\n');
-            const title = messageLines[0];
-            const description = messageLines.slice(1).join('\\n').trim();
-            
-            prBody = `Cherry-picks commit [\`${commit.sha.substring(0, 7)}\`](${commit.html_url}) from \`${SOURCE_BRANCH}\` to \`${TARGET_BRANCH}\`.`;
-            
-            if (description) {
-              prBody += `\\n\\n## Commit Details\\n\\n${description}`;
-            }
-          } else {
-            prBody = `Cherry-picks ${selectedCommitObjects.length} commits from \`${SOURCE_BRANCH}\` to \`${TARGET_BRANCH}\`.\\n\\n## Commits\\n\\n`;
-            
-            selectedCommitObjects.forEach(commit => {
-              const messageLines = commit.commit.message.split('\\n');
-              const title = messageLines[0];
-              const description = messageLines.slice(1).join('\\n').trim();
-              
-              prBody += `### [\`${commit.sha.substring(0, 7)}\`](${commit.html_url}) ${title}\\n\\n`;
-              
-              if (description) {
-                prBody += `${description}\\n\\n`;
-              }
-            });
-          }
-          
-          prBody += `---\\n*Created via Commit Cherry-Picker Tool*\\n\\n**Note:** Please resolve any conflicts in the GitHub UI before merging.`;
+          const prBody = `This PR cherry-picks the following commits from \`${SOURCE_BRANCH}\` to \`${TARGET_BRANCH}\`:
+
+${commitList}
+
+## Selected Commits
+${selectedCommitObjects.map(c => `- [\`${c.sha.substring(0, 7)}\`](${c.html_url}) ${c.commit.message.split('\\n')[0]}`).join('\\n')}
+
+---
+*Created via Commit Cherry-Picker Tool*
+
+**Note:** Please resolve any conflicts in the GitHub UI before merging.`;
 
           console.log('Creating pull request...');
           
