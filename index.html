@@ -1123,25 +1123,86 @@
             },
 
             async cherryPick(branchName, commitSha) {
+                // Get the commit we want to cherry-pick
                 const commit = await this.getCommitDetails(commitSha);
-                const branch = await this.getBranch(branchName);
                 
-                // Use GitHub's merge API to properly cherry-pick the commit
-                // This will only apply the diff, not copy the entire tree
-                try {
-                    return await this.request(`/repos/${CONFIG.repo}/merges`, {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            base: branchName,
-                            head: commitSha,
-                            commit_message: `${commit.commit.message}\n\n(cherry picked from commit ${commitSha})`
-                        })
-                    });
-                } catch (error) {
-                    // If merge fails (conflicts), we still want to continue
-                    console.warn(`Merge conflict for ${commitSha}:`, error);
-                    throw error;
+                // Get the parent commit (the commit before the one we're cherry-picking)
+                const parentSha = commit.parents[0].sha;
+                
+                // Get current branch HEAD
+                const branch = await this.getBranch(branchName);
+                const baseTreeSha = branch.commit.commit.tree.sha;
+                
+                // Compare the commit with its parent to get the diff
+                const comparison = await this.request(`/repos/${CONFIG.repo}/compare/${parentSha}...${commitSha}`);
+                
+                // Get the base tree
+                const baseTree = await this.request(`/repos/${CONFIG.repo}/git/trees/${baseTreeSha}`);
+                
+                // Create a new tree by applying the changes from the diff
+                const treeItems = [];
+                
+                // Start with all items from base tree
+                const treeMap = new Map(baseTree.tree.map(item => [item.path, item]));
+                
+                // Apply changes from the diff
+                for (const file of comparison.files) {
+                    if (file.status === 'removed') {
+                        // Remove file from tree
+                        treeMap.delete(file.filename);
+                    } else if (file.status === 'added' || file.status === 'modified' || file.status === 'renamed') {
+                        // Get the blob SHA from the commit we're cherry-picking
+                        const commitTree = await this.request(`/repos/${CONFIG.repo}/git/trees/${commit.commit.tree.sha}?recursive=1`);
+                        const fileInCommit = commitTree.tree.find(item => item.path === (file.status === 'renamed' ? file.filename : file.filename));
+                        
+                        if (fileInCommit) {
+                            treeMap.set(file.filename, {
+                                path: file.filename,
+                                mode: fileInCommit.mode,
+                                type: fileInCommit.type,
+                                sha: fileInCommit.sha
+                            });
+                        }
+                    }
                 }
+                
+                // Convert map back to array
+                treeMap.forEach(item => {
+                    treeItems.push({
+                        path: item.path,
+                        mode: item.mode,
+                        type: item.type,
+                        sha: item.sha
+                    });
+                });
+                
+                // Create new tree
+                const newTree = await this.request(`/repos/${CONFIG.repo}/git/trees`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        tree: treeItems
+                    })
+                });
+                
+                // Create new commit with the new tree
+                const newCommit = await this.request(`/repos/${CONFIG.repo}/git/commits`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        message: `${commit.commit.message}\n\n(cherry picked from commit ${commitSha})`,
+                        tree: newTree.sha,
+                        parents: [branch.commit.sha]
+                    })
+                });
+                
+                // Update branch to point to new commit
+                await this.request(`/repos/${CONFIG.repo}/git/refs/heads/${branchName}`, {
+                    method: 'PATCH',
+                    body: JSON.stringify({
+                        sha: newCommit.sha
+                    })
+                });
+                
+                return newCommit;
             },
 
             async createPR(title, body, head, base = CONFIG.targetBranch) {
