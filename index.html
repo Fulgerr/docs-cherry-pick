@@ -918,7 +918,7 @@
             <p class="subtitle">Promote commits from develop to main</p>
             
             <div class="repo-info">
-                <strong>Repository:</strong> Fulgerr/docs-pilot<br>
+                <strong>Repository:</strong> UiPath/uipath-docs-content<br>
                 <strong>Source:</strong> develop → <strong>Target:</strong> main
             </div>
 
@@ -1025,7 +1025,7 @@
     <script>
         // Configuration
         const CONFIG = {
-            repo: 'Fulgerr/docs-pilot',
+            repo: 'UiPath/uipath-docs-content',
             sourceBranch: 'develop',
             targetBranch: 'main',
             tokenKey: 'github_cherry_pick_token',
@@ -1123,34 +1123,25 @@
             },
 
             async cherryPick(branchName, commitSha) {
-                // Get the commit we want to cherry-pick
                 const commit = await this.getCommitDetails(commitSha);
-                
-                // Get current branch state
                 const branch = await this.getBranch(branchName);
-                const currentCommitSha = branch.commit.sha;
                 
-                // Create a new commit with the same tree and message, but new parent
-                const newCommit = await this.request(`/repos/${CONFIG.repo}/git/commits`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        message: commit.commit.message,
-                        tree: commit.commit.tree.sha,
-                        parents: [currentCommitSha],
-                        author: commit.commit.author,
-                        committer: commit.commit.committer
-                    })
-                });
-                
-                // Update branch to point to new commit
-                await this.request(`/repos/${CONFIG.repo}/git/refs/heads/${branchName}`, {
-                    method: 'PATCH',
-                    body: JSON.stringify({
-                        sha: newCommit.sha
-                    })
-                });
-                
-                return newCommit;
+                // Use GitHub's merge API to properly cherry-pick the commit
+                // This will only apply the diff, not copy the entire tree
+                try {
+                    return await this.request(`/repos/${CONFIG.repo}/merges`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            base: branchName,
+                            head: commitSha,
+                            commit_message: `${commit.commit.message}\n\n(cherry picked from commit ${commitSha})`
+                        })
+                    });
+                } catch (error) {
+                    // If merge fails (conflicts), we still want to continue
+                    console.warn(`Merge conflict for ${commitSha}:`, error);
+                    throw error;
+                }
             },
 
             async createPR(title, body, head, base = CONFIG.targetBranch) {
@@ -1265,11 +1256,17 @@
                 // Create a map of main commit tree SHAs for duplicate detection
                 const mainTreeShas = new Set(mainCommits.map(c => c.commit.tree.sha));
 
-                // Filter commits that are on develop but not on main, excluding merge commits
-                const uniqueCommits = [];
+                // First pass: filter commits that are on develop but not on main
+                const candidateCommits = [];
                 for (const commit of developCommits) {
                     // Skip merge commits entirely
                     if (commit.parents && commit.parents.length > 1) {
+                        continue;
+                    }
+
+                    // Skip automated commits (those starting with 🤖)
+                    const commitMessage = commit.commit.message;
+                    if (commitMessage.startsWith('🤖')) {
                         continue;
                     }
 
@@ -1280,28 +1277,41 @@
                         continue;
                     }
 
-                    // Get full commit details including files
-                    const details = await github.getCommitDetails(commit.sha);
-                    
-                    // Extract unique root paths from commit files
-                    const paths = new Set();
-                    if (details.files && details.files.length > 0) {
-                        details.files.forEach(file => {
-                            const parts = file.filename.split('/');
-                            // If file has a directory path, add the root folder
-                            if (parts.length > 1) {
-                                paths.add(parts[0]);
-                            } else {
-                                // File is in root directory
-                                paths.add('root');
-                            }
-                        });
-                    }
+                    candidateCommits.push(commit);
+                }
 
-                    uniqueCommits.push({
-                        ...commit,
-                        paths: Array.from(paths).sort(),
-                        files: details.files
+                // Second pass: fetch commit details in parallel batches of 10
+                const batchSize = 10;
+                const uniqueCommits = [];
+                
+                for (let i = 0; i < candidateCommits.length; i += batchSize) {
+                    const batch = candidateCommits.slice(i, i + batchSize);
+                    const detailsPromises = batch.map(commit => github.getCommitDetails(commit.sha));
+                    const detailsResults = await Promise.all(detailsPromises);
+                    
+                    detailsResults.forEach((details, index) => {
+                        const commit = batch[index];
+                        
+                        // Extract unique root paths from commit files
+                        const paths = new Set();
+                        if (details.files && details.files.length > 0) {
+                            details.files.forEach(file => {
+                                const parts = file.filename.split('/');
+                                // If file has a directory path, add the root folder
+                                if (parts.length > 1) {
+                                    paths.add(parts[0]);
+                                } else {
+                                    // File is in root directory
+                                    paths.add('root');
+                                }
+                            });
+                        }
+
+                        uniqueCommits.push({
+                            ...commit,
+                            paths: Array.from(paths).sort(),
+                            files: details.files
+                        });
                     });
                 }
 
@@ -1453,11 +1463,18 @@
 
                 // Clear selection
                 state.selectedCommits.clear();
-                renderCommits();
+                
+                // Update UI without full reload
+                const commitCards = document.querySelectorAll('.commit-card');
+                commitCards.forEach(card => {
+                    card.classList.remove('selected');
+                    const checkbox = card.querySelector('.commit-checkbox');
+                    if (checkbox) {
+                        checkbox.checked = false;
+                    }
+                });
+                
                 updateUI();
-
-                // Reload to refresh PR links
-                setTimeout(() => loadCommits(), 2000);
 
             } catch (error) {
                 console.error('Failed to create PR:', error);
